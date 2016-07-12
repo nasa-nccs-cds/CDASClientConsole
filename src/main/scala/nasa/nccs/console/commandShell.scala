@@ -1,15 +1,6 @@
 package nasa.nccs.console
 import java.io.{Console, PrintWriter, StringWriter}
-
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
-import nasa.nccs.cds2.engine.MetadataPrinter
-import nasa.nccs.cds2.loaders.Collections
-import nasa.nccs.esgf.process.TaskRequest
-
-import collection.mutable
 import scala.annotation.tailrec
-import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.Future
 
 object ParseHelp {
   def isInt( value: String ): Boolean = try { value.toInt; true } catch { case t: Throwable => false }
@@ -28,7 +19,7 @@ abstract class CommandHandler( val name: String, val description: String ) {
   override def toString = s"{$id}"
 }
 
-class ShellState( val handlerStack: Vector[CommandHandler], val history: Vector[String]= Vector.empty[String], val props: Map[String,Array[String]]=Map.empty[String,Array[String]] ) {
+class ShellState( val handlerStack: Vector[CommandHandler], val history: Vector[String]= Vector.empty[String], val props: Map[String,xml.Node]=Map.empty[String,xml.Node] ) {
   def pushHandler( handler: CommandHandler ): ShellState = {
 //    println( " push <<<< topHandler: %s".format( handlerStack.map(_.toString).mkString("{ ",", "," }") ) )
     val handlers: Vector[CommandHandler] = handlerStack :+ handler
@@ -54,8 +45,8 @@ class ShellState( val handlerStack: Vector[CommandHandler], val history: Vector[
   def getTopHandler = handlerStack.last
   def getStackStr = handlerStack.map( _.id ).mkString( "( ",", "," )")
   def sameHandler( handler: ShellState ): Boolean = { getTopHandler == handler.getTopHandler }
-  def getProp( name: String ): Option[Array[String]] = props.get( name )
-  def :+ ( new_props: Map[String,Array[String]] ): ShellState = new ShellState( handlerStack, history, props ++ new_props )
+  def getProp( name: String ): Option[xml.Node] = props.get( name )
+  def :+ ( new_props: Map[String,xml.Node] ): ShellState = new ShellState( handlerStack, history, props ++ new_props )
 }
 
 class CommandShell( val baseHandler: CommandHandler) {
@@ -192,18 +183,18 @@ final class HistoryHandler( name: String, val executor: (String) => Unit, var er
   }
 }
 
-object consoleTest extends App {
-  val testHandlers = Array(
-    new MultiStepCommandHandler( "[m]ultistep", "MultiStepCommandHandler", Vector("Enter one >> ", "Enter two >> ", "Enter three >> "), Vector( (x)=>None, (x)=>None, (x)=>None ), (vals,state) => { println( vals.mkString(",") ); state } ),
-    new ListSelectionCommandHandler( "[s]election", "ListSelectionCommandHandler", (state) => Array("value1", "value2", "value3"),  (values: Array[String],state) => { println( "Selection: " + values.mkString(",") ); state }  ),
-    new EchoHandler( "[e]cho", "EchoHandler", "Input Command >> " ),
-    new HistoryHandler( "[hi]story",  (value: String) => println( s"History Selection: $value" )  ),
-    new HelpHandler( "[h]elp", "Command Help" )
-  )
-  val shell = new CommandShell( new SelectionCommandHandler( "base", "BaseHandler", ">> ", testHandlers ) )
-  shell.run
-}
-
+//object consoleTest extends App {
+//  val testHandlers = Array(
+//    new MultiStepCommandHandler( "[m]ultistep", "MultiStepCommandHandler", Vector("Enter one >> ", "Enter two >> ", "Enter three >> "), Vector( (x)=>None, (x)=>None, (x)=>None ), (vals,state) => { println( vals.mkString(",") ); state } ),
+//    new ListSelectionCommandHandler( "[s]election", "ListSelectionCommandHandler", (state) => Array("value1", "value2", "value3"),  (values: Array[String],state) => { println( "Selection: " + values.mkString(",") ); state }  ),
+//    new EchoHandler( "[e]cho", "EchoHandler", "Input Command >> " ),
+//    new HistoryHandler( "[hi]story",  (value: String) => println( s"History Selection: $value" )  ),
+//    new HelpHandler( "[h]elp", "Command Help" )
+//  )
+//  val shell = new CommandShell( new SelectionCommandHandler( "base", "BaseHandler", ">> ", testHandlers ) )
+//  shell.run
+//}
+//
 
 
 

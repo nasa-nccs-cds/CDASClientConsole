@@ -1,38 +1,33 @@
 package nasa.nccs.console
 
-import java.util
 import ucar.nc2.time.CalendarDate
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
-import nasa.nccs.cds2.loaders.Collections
-import nasa.nccs.esgf.process.DomainAxis.Type._
-import nasa.nccs.esgf.process.{DomainAxis, DomainContainer}
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
 object cdasDomainManager {
-  import DomainAxis.Type._
 
-  private val domainMap = new ConcurrentLinkedHashMap.Builder[String, DomainContainer ].initialCapacity(100).maximumWeightedCapacity(10000).build()
-  domainMap.put( "d0", DomainContainer.empty( "d0" ) )
-  def getDomain(domId: String ): Option[DomainContainer] = Option(domainMap.get(domId))
-  def putDomain(domId: String, domain: DomainContainer ) = domainMap.put(domId, domain)
+  private val domainMap = new ConcurrentLinkedHashMap.Builder[String, Domain ].initialCapacity(100).maximumWeightedCapacity(10000).build()
+  domainMap.put( "d0", new Domain( "d0" ) )
+  def getDomain(domId: String ): Option[Domain] = Option(domainMap.get(domId))
+  def putDomain(domId: String, domain: Domain ) = domainMap.put(domId, domain)
 
   def createDomain( inputs: Vector[String] ) = {
     val domainId = "d" + domainMap.size
-    val domainAxes = inputs zip List( X, Y, Z, T ) map { case ( input: String, atype ) => createDomainAxis( atype, input ) }
-    val domain = new DomainContainer( domainId, domainAxes.flatten.toList )
+    val domainAxes = inputs zip List( "lat", "lon", "lev", "time" ) map { case ( input: String, id ) => createDomainAxis( id, input ) }
+    val domain = new Domain( domainId, domainAxes.flatten.toList )
     putDomain( domainId, domain )
     println( "Created Domain %s: %s".format( domainId, domain.toString ) )
   }
 
-  def getDomains: IndexedSeq[DomainContainer] = domainMap.values.toIndexedSeq
+  def getDomains: IndexedSeq[Domain] = domainMap.values.toIndexedSeq
 
   def getDomainSelectionList( state: ShellState  ): Array[String] = {
-    getDomains.map( (dc: DomainContainer) => dc.name + ": " + dc.axes.mkString("{",", ","}") ).toArray
+    getDomains.map( (dc: Domain) => dc.id + ": " + dc.axes.mkString("{",", ","}") ).toArray
   }
 
-  def createDomainAxis( atype: DomainAxis.Type.Value, input: String ): Option[DomainAxis] = {
+  def createDomainAxis( id:String, input: String ): Option[Axis] = {
     if(input.isEmpty) None else {
       val args = getArgs(input)
       val vtype = args(0) match {
@@ -40,13 +35,13 @@ object cdasDomainManager {
         case x if x.startsWith("v") => "values"
         case x => throw new Exception("Unrecognized value/index specification: " + x)
       }
-      val b0 = getNumber( atype, vtype, args(1) )
-      val b1 = if (args.length < 3) b0 else getNumber( atype, vtype, args(2) )
-      Some(new DomainAxis( atype, b0, b1, vtype) )
+      val b0 = getNumber( id, vtype, args(1) )
+      val b1 = if (args.length < 3) b0 else getNumber( id, vtype, args(2) )
+      Some(new Axis( id, b0, b1, vtype) )
     }
   }
 
-  def domainAxisValidator( atype: DomainAxis.Type.Value )( input: String ): Option[String] = {
+  def domainAxisValidator( id: String )( input: String ): Option[String] = {
     if(input.isEmpty) return  None
     val args = getArgs(input)
     if( args.length < 2 ) return Some("Missing input")
@@ -56,7 +51,7 @@ object cdasDomainManager {
         if( !validInt( args(1) ) ) return Some("Invalid bounds index: '%s'".format(args(1)) )
         if( (args.length > 2) && !validInt( args(2) ) ) return Some("Invalid bounds index: '%s'".format(args(2)) )
       case x if x.startsWith("v") =>
-        if( atype == T ) {
+        if( id.startsWith("tim") ) {
           if (!validTime(args(1))) return Some("Invalid ISO (YYYY-MM-DDThh:mm) date/time value: '%s'".format(args(1)) )
           if ((args.length > 2) && !validTime(args(2))) return Some("Invalid ISO (YYYY-MM-DDThh:mm) date/time value: '%s'".format(args(2)) )
         } else {
@@ -68,17 +63,17 @@ object cdasDomainManager {
   }
 
   def defineDomainHandler: MultiStepCommandHandler = new MultiStepCommandHandler( "[d]omain", "Define new domain", Vector("Lon","Lat","Level","Time").map(_+" bounds: <[i]ndex/[v]alue>, <bound0>, (<bound1>) >> "),
-        Vector(X,Y,Z,T).map(domainAxisValidator(_) _ ), (vals,state) => { createDomain( vals ); state } )
+        Vector("lat","lon","lev","time").map(domainAxisValidator(_) _ ), (vals,state) => { createDomain( vals ); state } )
 
   def selectDomainCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[sd]omain", "Select domain(s)", getDomainSelectionList, ( cids:Array[String], state ) => { state :+ Map( "domains" -> cids.map( _.split(':')(0).trim ) ) } )
+    new ListSelectionCommandHandler("[sd]omain", "Select domain(s)", getDomainSelectionList, ( cids:Array[String], state ) => { state :+ Map( "domains" -> <array>{cids.map( cid => cid.split(':')(0).trim ) }</array> ) } )
   }
 
   def validFloat( input: String ): Boolean = try { input.toFloat; true } catch { case ex: Throwable => false }
   def validInt( input: String ): Boolean = try { input.toInt; true } catch { case ex: Throwable => false }
   def validTime( input: String ): Boolean = try { CalendarDate.parseISOformat(null,input); true } catch { case ex: Throwable => false }
   def getArgs( command: String ): Array[String] = command.replace(","," ").trim.split("\\s+")
-  def getNumber( atype: DomainAxis.Type.Value, vtype: String, value: String ): GenericNumber = GenericNumber( if ( vtype.equals("indices") ) value.toInt else if(atype == T) value else value.toFloat)
+  def getNumber( id: String, vtype: String, value: String ): GenericNumber = GenericNumber( if ( vtype.equals("indices") ) value.toInt else if(id.startsWith("tim")) value else value.toFloat)
 }
 
 /*

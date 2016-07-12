@@ -66,12 +66,6 @@ cdas_cache_dir := {
   cache_dir
 }
 
-cdasLocalCollectionsFile :=  {
-  val collections_file = cdas_cache_dir.value / "local_collections.xml"
-  if( !collections_file.exists ) { xml.XML.save( collections_file.getAbsolutePath, <collections></collections> ) }
-  collections_file
-}
-
 unmanagedClasspath in Compile += cdas_cache_dir.value
 unmanagedClasspath in Runtime += cdas_cache_dir.value
 unmanagedClasspath in Test += cdas_cache_dir.value
