@@ -38,7 +38,13 @@ class ShellState( val handlerStack: Vector[CommandHandler], val history: Vector[
 //    println( " pop>>>> topHandler: %s".format( handlers.map(_.toString).mkString("{ ",", "," }") ) )
     new ShellState( handlers, history, props )
   }
-  def handleCommand( command: String ): ShellState = { handlerStack.last.process( new ShellState( handlerStack, history :+ command, props ) )   }
+  def handleCommand( command: String ): ShellState =
+    processResults( handlerStack.last.process( new ShellState( handlerStack, history :+ command.trim, props ) ) )
+
+  def processResults(state: ShellState): ShellState = state.getProp("results") match {
+    case Some(rnode) => println(rnode.toString); state :- "results"
+    case None => state
+  }
   def delegate( handler: CommandHandler ): ShellState = {  handler.process( pushHandler(handler) )  }
   def getPrompt = { handlerStack.last.getPrompt( this ) }
   def getTopCommand = history.last
@@ -47,6 +53,7 @@ class ShellState( val handlerStack: Vector[CommandHandler], val history: Vector[
   def sameHandler( handler: ShellState ): Boolean = { getTopHandler == handler.getTopHandler }
   def getProp( name: String ): Option[xml.Node] = props.get( name )
   def :+ ( new_props: Map[String,xml.Node] ): ShellState = new ShellState( handlerStack, history, props ++ new_props )
+  def :- ( prop_key: String ): ShellState = new ShellState( handlerStack, history, props - prop_key )
 }
 
 class CommandShell( val baseHandler: CommandHandler) {

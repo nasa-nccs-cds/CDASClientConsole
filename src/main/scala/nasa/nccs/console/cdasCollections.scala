@@ -6,7 +6,7 @@ import nasa.nccs.utilities.Loggable
 
 class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggable {
   val printer = new xml.PrettyPrinter(200, 3)
-  private var collections: Option[xml.Node] = requestCollections
+  private var _collections: Option[xml.Node] = requestCollections
 
 //  def executeTask( taskRequest: TaskRequest, runArgs: Map[String,String] = Map.empty[String,String] ): ExecutionResults = requestManager.blockingExecute(taskRequest, runArgs)
 
@@ -18,10 +18,26 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
 //    }
 //    state
 //  }
-  def updateCollections = if( !collections.isDefined ) { collections = requestCollections }
-  def getCollections: Option[xml.Node] = { updateCollections; collections }
+  def updateCollections = if( !_collections.isDefined ) { _collections = requestCollections }
+  def getCollections: Option[xml.Node] = { updateCollections; _collections }
+
+  def getCollectionMap: Map[String,Collection] = {
+    updateCollections
+    val collections: Seq[Collection] = _collections match {
+      case None => Seq.empty[Collection]
+      case Some(collNodes) => collNodes.child.map( cNode => Collection(cNode) )
+    }
+    Map( collections.map( col => (col.id -> col ) ):_* )
+  }
   def attr( node: xml.Node, att_name: String ): String = { node.attribute(att_name) match { case None => ""; case Some(x) => x.toString }}
   def attrOpt( node: xml.Node, att_name: String ): Option[String] = node.attribute(att_name).map( _.toString )
+
+  def updateCollections( new_collections: Seq[xml.Node] ) = {
+    _collections = _collections match {
+      case None => Some(<collections>  {new_collections} </collections>)
+      case Some(collections) => Some(<collections> { collections.child ++ new_collections } </collections>)
+    }
+  }
 
   def primaryDomain( state: ShellState ): Option[Domain] = state.getProp("domains") match {
     case Some(domids) =>
@@ -30,62 +46,44 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   }
 
   def aggregateDataset( inputs: Vector[String], state: ShellState ): ShellState = {
-    println( " aggregateDataset, prop vals = " + state.props.values.map( _.mkString(",") ).mkString(" -- ") )
-//    val path = inputs(1)
-//    val uri: String = "collection:/" + inputs(0)
-//    val dataInputs = Map( "variable" -> List(Map("uri" -> uri, "path" -> path )) )
-//    executeTask(TaskRequest("util.cache", dataInputs))
-//    collections = None
-    state :+ Map( "results" -> <empty/> )
+    println( " aggregateDataset, inputs = " + inputs.mkString(", ") )
+    val id = inputs(0)
+    val path = inputs(1)
+    val uri: String = "collection:/" + id
+    val collection = new Collection(id,uri,path)
+    val results = localClientRequestManager.submitRequest( false, "util.agg", List.empty[Domain], List(collection), List.empty[Operation] )
+    updateCollections( for( result <- results.child; collection <- result.child ) yield collection )
+    state :+ Map( "results" -> results )
   }
 
     def cacheVariables( state: ShellState ): ShellState = {
-    println( " cacheVariables, prop vals = " + state.props.values.map( _.mkString(",") ).mkString(" -- ") )
-//    val domain: Domain = primaryDomain(state).getOrElse( new Domain("d0") )
-//    state.getProp("variables")  match {
-//      case Some(varRecs) =>
-//        val results: Array[ExecutionResults] = varRecs.map( (varRec) => {
-//          val vtoks = varRec.split(':').map(_.trim)
-//          val varname = vtoks(1)
-//          val uri: String = "collection:/" + vtoks(0)
-//          val dataInputs = Map(
-//            "domain" -> List( domain ),
-//            "variable" -> List( new Variable( uri,varname,domain.id) )
-//          )
-//          executeTask(TaskRequest("util.cache", dataInputs))
-//        })
-        state :+ Map( "results" -> <empty/> )
-//      case None =>
-//        println( "No selected variables" )
-//        state
+      println( " cacheVariables, prop vals = " + state.props.values.map( _.mkString(",") ).mkString(" -- ") )
+      val domid = state.props.get("domains") match {
+        case None => "d0"
+        case Some( dom_array ) => dom_array.text.replace(',',' ').split("\\s+")(0)
+      }
+      cdasDomainManager.getDomain( domid ) match {
+        case None => state
+        case Some( domain) =>
+          val variables: Seq[Variable] = state.props.get("variables") match {
+            case None => Seq.empty[Variable]
+            case Some( varNodes ) => for((varNode,index)<-varNodes.child.zipWithIndex; variable=Variable(varNode,"v"+index,domid); if(!variable.varname.isEmpty)) yield variable
+          }
+          if( variables.isEmpty ) state
+          else state :+ Map( "results" -> localClientRequestManager.submitRequest(false, "util.cache", List(domain), variables.toList, List.empty[Operation]) )
+      }
     }
 
-//        variables.map(cid => Collections.findCollection(cid) match {
-//
-//        }
-////    state.getProp("collections") match {
-////      case Some( cids ) => cids.foreach( (cid) => {
-////
-////      }
-////    }
-//    state.getProp()
-//    printf( " Cache Variables: " + inputs.mkString(",") )
-////    val uri: String = "collection:/" + inputs(0)
-////    val varnames = inputs(1).toLowerCase.trim.replace(","," ").split("\\s+")
-////    val results: Array[ExecutionResults] = for( varname <- varnames ) yield {
-////      val dataInputs = Map("variable" -> List(Map("uri" -> uri, "name" -> varname, "domain" -> inputs(2))))
-////      executeTask( TaskRequest("util.cache", dataInputs) )
-//    }
-//    state
-//  }
-
-  def validCollectionId( exists: Boolean )( id: String ): Option[String] = {
-    if( true /*Collections.getCollectionKeys.contains(id) */ ) {
-      if(exists) None else Some( s"collection $id exists")
-    } else {
-      if(exists) Some( s"collection $id does not exist" ) else None
-    }
+  def validCollectionId(exists: Boolean)(id: String): Option[String] = getCollections match {
+    case Some(collNode) =>
+      if ( collNode.child.find( node => ( attr(node,"id") == id ) ).isDefined ) {
+        if (exists) None else Some(s"collection $id exists")
+      } else {
+        if (exists) Some(s"collection $id does not exist") else None
+      }
+    case None => None
   }
+
   def validDirecory( dir: String ): Option[String] = { if( Files.exists(Paths.get(dir.trim))) None else Some( s"Directory '$dir' does not exist" ) }
   def validDomainId( domId: String ): Option[String] = { None }
   def validVariables( vars: String ): Option[String] = { None }
@@ -107,12 +105,12 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
 
   def requestVariableList(state: ShellState): Array[String] = {
     state.getProp("collections")  match {
-      case Some( collections ) =>
-        collections.child.flatMap( cnode => cnode.attribute("id") match {
-          case Some( id_node ) =>
-            Some( xmlToString(requestManager.requestCapabilities("variables!" + id_node.toString ) ) )
-          case None => None
-        } ).toArray
+      case Some( collections ) => {
+        collections.child.flatMap( cnode => {
+          cnode.attribute("id") match {
+            case Some( coll_id ) => Some( cnode.text.replace(',',' ').split("\\s+").filter(!_.isEmpty).map( id => <variable id={id} collection={coll_id}/>.toString ) )
+            case None => None
+        }} ).foldLeft(Array.empty[String])(_ ++ _) }
       case None => println( "++++ UNDEF Collections! "); Array.empty[String]
     }
   }
@@ -138,7 +136,12 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     else response.child.filterNot(_.label.startsWith("#")).map(cNode => cNode.toString.replace('\n',' ')).toArray
   }
 
-  def removeCollection( cid: String ) = println( "Remove Collection: " + cid)
+  def removeCollections( cids: Array[String] ) = {
+    val collections = getCollectionMap
+    val cList = cids.flatMap( cid => collections.get(cid) ).toList
+    val results = localClientRequestManager.submitRequest( false, "util.dcol", List.empty[Domain], cList, List.empty[Operation] )
+    _collections = None
+  }
   def removeFragment( fid: String ) = println( "Remove Fragment: " + fid)
   def printCollectionMetadata( collectionId: String  ): Unit = println( collectionId ) // printer.format( getCollection( collectionId ) ) )
   def printFragmentMetadata( fragDesc: String  ): Unit = println( fragDesc )
@@ -147,7 +150,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     new ListSelectionCommandHandler("[lc]ollections", "List collection metadata", (state) => requestCollectionsList, (cids:Array[String],state) => { cids.foreach( cid => printCollectionMetadata(cid)); state } )
   }
   def deleteCollectionsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[dc]ollections", "Delete specified collections", (state) => requestCollectionsList, (cids:Array[String],state) => { cids.foreach( cid => removeCollection( cid ) ); state } )
+    new ListSelectionCommandHandler("[dc]ollections", "Delete specified collections", (state) => requestCollectionsList, (cids:Array[String],state) => { removeCollections( cids ); state } )
   }
   def selectCollectionsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[sc]ollections", "Select collection(s)", (state) => requestCollectionsList, ( cids:Array[String], state ) => state :+ Map( "collections" -> <collections> { cids.map( cid => xml.XML.loadString(cid)) } </collections> )  )
