@@ -136,24 +136,36 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     else response.child.filterNot(_.label.startsWith("#")).map(cNode => cNode.toString.replace('\n',' ')).toArray
   }
 
-  def removeCollections( cids: Array[String] ) = {
-    val collections = getCollectionMap
-    val cList = cids.flatMap( cid => collections.get(cid) ).toList
+  def removeCollections( collectionXmls: Array[String] ) = {
+    val collectionMap = getCollectionMap
+    val cids = collectionXmls.map( collectionXml => attr( xml.XML.loadString(collectionXml), "id" ) )
+    println( "Collection keys -> " + collectionMap.keys.mkString(",") )
+    val cList = cids.flatMap( cid => collectionMap.get( cid ) ).toList
+    println( "  ------> RemoveCollection( " + cids(0) + " ) -> " + cList.mkString(",") )
     val results = localClientRequestManager.submitRequest( false, "util.dcol", List.empty[Domain], cList, List.empty[Operation] )
     _collections = None
   }
+
+  def removeFragments( fragXmls: Array[String] ) = {
+    println( "Remove Fragments: " + fragXmls.mkString(",") )
+    val frags = fragXmls.map( fragXml => xml.XML.loadString(fragXml) )
+    val variables: List[WpsData] = List.empty[WpsData]  // frags.flatMap( frag => new Variable() ).toList      TODO: Finish this
+    val results = localClientRequestManager.submitRequest( false, "util.dfrag", List.empty[Domain], variables, List.empty[Operation] )
+    _collections = None
+  }
+
   def removeFragment( fid: String ) = println( "Remove Fragment: " + fid)
   def printCollectionMetadata( collectionId: String  ): Unit = println( collectionId ) // printer.format( getCollection( collectionId ) ) )
   def printFragmentMetadata( fragDesc: String  ): Unit = println( fragDesc )
 
   def listCollectionsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[lc]ollections", "List collection metadata", (state) => requestCollectionsList, (cids:Array[String],state) => { cids.foreach( cid => printCollectionMetadata(cid)); state } )
+    new ListSelectionCommandHandler("[lc]ollections", "List collection metadata", (state) => requestCollectionsList, (collections:Array[String],state) => { collections.foreach( collection => printCollectionMetadata(collection)); state } )
   }
   def deleteCollectionsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[dc]ollections", "Delete specified collections", (state) => requestCollectionsList, (cids:Array[String],state) => { removeCollections( cids ); state } )
+    new ListSelectionCommandHandler("[dc]ollections", "Delete specified collections", (state) => requestCollectionsList, (collections:Array[String],state) => { removeCollections( collections ); state } )
   }
   def selectCollectionsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[sc]ollections", "Select collection(s)", (state) => requestCollectionsList, ( cids:Array[String], state ) => state :+ Map( "collections" -> <collections> { cids.map( cid => xml.XML.loadString(cid)) } </collections> )  )
+    new ListSelectionCommandHandler("[sc]ollections", "Select collection(s)", (state) => requestCollectionsList, ( collections:Array[String], state ) => state :+ Map( "collections" -> <collections> { collections.map( collection => xml.XML.loadString(collection)) } </collections> )  )
   }
   def selectVariablesCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[sv]ariables", "Select variables from selected collection(s)", requestVariableList, (cids:Array[String],state) => { state :+ Map( "variables" -> <variables> { cids.map( cid => xml.XML.loadString(cid)) } </variables> ) } )
@@ -163,7 +175,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     new ListSelectionCommandHandler("[lf]ragments", "List cached data fragments", (state) =>requestFragmentList, (fragEntries:Array[String],state) => { fragEntries.foreach( fragDesc => printFragmentMetadata( fragDesc ) ); state } )
   }
   def deleteFragmentsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[df]ragments", "Delete specified data fragments from the cache", (state) => requestFragmentList, (fids:Array[String],state) => { fids.foreach( fid => removeFragment( fid )  ); state } )
+    new ListSelectionCommandHandler("[df]ragments", "Delete specified data fragments from the cache", (state) => requestFragmentList, (fragments:Array[String],state) => { removeFragments( fragments ); ; state } )
   }
 
 }

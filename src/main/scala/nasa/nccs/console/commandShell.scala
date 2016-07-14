@@ -118,9 +118,6 @@ final class ListSelectionCommandHandler( name: String, description: String, val 
       executor( args.map( arg => getChoices(state)(arg.toInt) ), state ).popHandler()
     } catch {
       case t: Throwable =>
-        val sw = new StringWriter
-        t.printStackTrace(new PrintWriter(sw))
-        printf( sw.toString )
         state.updateHandler( new ListSelectionCommandHandler(name, description, getChoices, executor, true) )
     }
   }
