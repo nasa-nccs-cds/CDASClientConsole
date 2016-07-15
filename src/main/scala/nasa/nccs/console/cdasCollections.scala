@@ -149,8 +149,8 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   def removeFragments( fragXmls: Array[String] ) = {
     println( "Remove Fragments: " + fragXmls.mkString(",") )
     val frags = fragXmls.map( fragXml => xml.XML.loadString(fragXml) )
-    val variables: List[WpsData] = List.empty[WpsData]  // frags.flatMap( frag => new Variable() ).toList      TODO: Finish this
-    val results = localClientRequestManager.submitRequest( false, "util.dfrag", List.empty[Domain], variables, List.empty[Operation] )
+    val variables: Array[WpsData] = for((frag, index) <- frags.zipWithIndex) yield new Variable("v"+index,attr(frag,"url"),attr(frag,"variable"),attr(frag,"origin")+"|"+attr(frag,"shape"))  //  def toFragKey =  "%s|%s|%s|%s".format( varname, collectionUrl, origin.mkString(","), shape.mkString(","))  TODO: Finish this :
+    val results = localClientRequestManager.submitRequest( false, "util.dfrag", List.empty[Domain], variables.toList, List.empty[Operation] )
     _collections = None
   }
 
