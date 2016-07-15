@@ -56,23 +56,61 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     state :+ Map( "results" -> results )
   }
 
-    def cacheVariables( state: ShellState ): ShellState = {
-      println( " cacheVariables, prop vals = " + state.props.values.map( _.mkString(",") ).mkString(" -- ") )
-      val domid = state.props.get("domains") match {
-        case None => "d0"
-        case Some( dom_array ) => dom_array.text.replace(',',' ').split("\\s+")(0)
-      }
-      cdasDomainManager.getDomain( domid ) match {
-        case None => state
-        case Some( domain) =>
-          val variables: Seq[Variable] = state.props.get("variables") match {
-            case None => Seq.empty[Variable]
-            case Some( varNodes ) => for((varNode,index)<-varNodes.child.zipWithIndex; variable=Variable(varNode,"v"+index,domid); if(!variable.varname.isEmpty)) yield variable
-          }
-          if( variables.isEmpty ) state
-          else state :+ Map( "results" -> localClientRequestManager.submitRequest(false, "util.cache", List(domain), variables.toList, List.empty[Operation]) )
-      }
+  def cacheVariables(state: ShellState): ShellState = {
+    println(" cacheVariables, prop vals = " + state.props.values.map(_.mkString(",")).mkString(" -- "))
+    val domid = state.props.get("domains") match {
+      case None => "d0"
+      case Some(dom_array) => dom_array.text.replace(',', ' ').split("\\s+")(0)
     }
+    cdasDomainManager.getDomain(domid) match {
+      case None => state
+      case Some(domain) =>
+        val variables: Seq[Variable] = state.props.get("variables") match {
+          case None => Seq.empty[Variable]
+          case Some(varNodes) => for ((varNode, index) <- varNodes.child.zipWithIndex; variable = Variable(varNode, "v" + index, domid); if (!variable.varname.isEmpty)) yield variable
+        }
+        if (variables.isEmpty) state
+        else state :+ Map("results" -> localClientRequestManager.submitRequest(false, "util.cache", List(domain), variables.toList, List.empty[Operation]))
+    }
+  }
+
+  def exeOperation( state: ShellState ): ShellState = {
+    println( " exeOperation, prop vals = " + state.props.values.map( _.mkString(",") ).mkString(" -- ") )
+    val domid = state.props.get("domains") match {
+      case None => "d0"
+      case Some( dom_array ) => dom_array.text.replace(',',' ').split("\\s+")(0)
+    }
+    cdasDomainManager.getDomain( domid ) match {
+      case None => state
+      case Some( domain) =>
+        val variables: Seq[Variable] = state.props.get("variables") match {
+          case None => Seq.empty[Variable]
+          case Some( varNodes ) => for((varNode,index)<-varNodes.child.zipWithIndex; variable=Variable(varNode,"v"+index,domid); if(!variable.varname.isEmpty)) yield variable
+        }
+        if( variables.isEmpty ) state
+        else {
+          val operations: Seq[(String,String)] = state.props.get("operations") match {
+            case None => Seq.empty[(String,String)]
+            case Some( opNodes ) => for((opNode,index)<-opNodes.child.zipWithIndex; operation=( attr(opNode,"module") -> attr(opNode,"name") ) ) yield operation
+          }
+          if( operations.isEmpty ) state
+          else {
+            val axes: String = state.props.get("axes") match {
+              case None => ""
+              case Some(axesNode) => axesNode.text.replaceAll("[^xyztXYZT]", "")
+            }
+            val results = <results> {
+              for ((opSpec, opIndex) <- operations.zipWithIndex) yield {
+                val input_uids: Array[String] = variables.map(_.uid).toArray
+                val op = new Operation(opSpec._1, opSpec._2, input_uids, Map("axes" -> axes), "r" + opIndex)
+                localClientRequestManager.submitRequest(false, "CDS.workflow", List(domain), variables.toList, List(op))
+              }
+              } </results>
+            state :+ Map("results" -> results)
+          }
+        }
+    }
+  }
 
   def validCollectionId(exists: Boolean)(id: String): Option[String] = getCollections match {
     case Some(collNode) =>
@@ -103,6 +141,14 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     )
   }
 
+
+  def exeOperationCommand: SequentialCommandHandler = {
+    new SequentialCommandHandler("[ex]ecute", "Execute analytics operation",
+      Vector( selectCollectionsCommand, cdasDomainManager.selectDomainCommand, selectVariablesCommand, selectOperationsCommand, selectAxesCommand  ),
+      exeOperation
+    )
+  }
+
   def requestVariableList(state: ShellState): Array[String] = {
     state.getProp("collections")  match {
       case Some( collections ) => {
@@ -128,6 +174,12 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   def requestCollectionsList(): Array[String] = getCollections match {
     case None => Array.empty[String]
     case Some(response) => response.child.filterNot(_.label.startsWith("#")).map(cNode => cNode.toString.replace('\n',' ')).toArray
+  }
+
+  def requestOperationsList(): Array[String] = {
+    val response = requestManager.requestCapabilities("operation")
+    if( response.label == "error" ) { logger.error( response.text ); Array.empty[String] }
+    else response.child.filterNot(_.label.startsWith("#")).map( opNode => opNode.toString.replace('\n',' ') ).toArray
   }
 
   def requestFragmentList(): Array[String] = {
@@ -167,6 +219,15 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   def selectCollectionsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[sc]ollections", "Select collection(s)", (state) => requestCollectionsList, ( collections:Array[String], state ) => state :+ Map( "collections" -> <collections> { collections.map( collection => xml.XML.loadString(collection)) } </collections> )  )
   }
+  def selectOperationsCommand: ListSelectionCommandHandler = {
+    new ListSelectionCommandHandler("[so]peration", "Select operation(s)", (state) => requestOperationsList, ( operations:Array[String], state ) => state :+ Map( "operations" -> <operations> { operations.map( operation => xml.XML.loadString(operation)) } </operations> )  )
+  }
+  def selectAxesCommand: ListSelectionCommandHandler = {
+    new ListSelectionCommandHandler("[sa]xes", "Select axes", (state) => Array("x","y","z","t"), ( axes:Array[String], state ) => state :+ Map( "axes" -> <axes> { axes.mkString(",") } </axes> )  )
+  }
+  def listOperationsCommand: ListSelectionCommandHandler = {
+    new ListSelectionCommandHandler("[lo]peration", "Select operation(s)", (state) => requestOperationsList, ( operations:Array[String], state ) => state :+ Map( "operations" -> <operations> { operations.map( operation => xml.XML.loadString(operation)) } </operations> )  )
+  }
   def selectVariablesCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[sv]ariables", "Select variables from selected collection(s)", requestVariableList, (cids:Array[String],state) => { state :+ Map( "variables" -> <variables> { cids.map( cid => xml.XML.loadString(cid)) } </variables> ) } )
   }
@@ -189,7 +250,9 @@ object collectionsConsoleTest extends App {
     cdasCollections.deleteCollectionsCommand,
     cdasCollections.listFragmentsCommand,
     cdasCollections.deleteFragmentsCommand,
+    cdasCollections.listOperationsCommand,
     cdasDomainManager.defineDomainHandler,
+    cdasCollections.exeOperationCommand,
     new HistoryHandler( "[hi]story",  (value: String) => println( s"History Selection: $value" )  ),
     new HelpHandler( "[h]elp", "Command Help" )
   )
