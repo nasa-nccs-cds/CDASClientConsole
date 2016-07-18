@@ -87,12 +87,14 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
           case None => Seq.empty[Variable]
           case Some( varNodes ) => for((varNode,index)<-varNodes.child.zipWithIndex; variable=Variable(varNode,"v"+index,domid); if(!variable.varname.isEmpty)) yield variable
         }
+        println( " -->> variables = " + variables.map(_.toString).mkString(",") )
         if( variables.isEmpty ) state
         else {
           val operations: Seq[(String,String)] = state.props.get("operations") match {
             case None => Seq.empty[(String,String)]
             case Some( opNodes ) => for((opNode,index)<-opNodes.child.zipWithIndex; operation=( attr(opNode,"module") -> attr(opNode,"name") ) ) yield operation
           }
+          println( " -->> operations = " + operations.toString )
           if( operations.isEmpty ) state
           else {
             val axes: String = state.props.get("axes") match {
@@ -100,7 +102,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
               case Some(axesNode) => axesNode.text.replaceAll("[^xyztXYZT]", "")
             }
             val results = <results> {
-              for ((opSpec, opIndex) <- operations.zipWithIndex) yield {
+              for( (opSpec, opIndex) <- operations.zipWithIndex; if( !opSpec._1.isEmpty && !opSpec._2.isEmpty )) yield {
                 val input_uids: Array[String] = variables.map(_.uid).toArray
                 val op = new Operation(opSpec._1, opSpec._2, input_uids, Map("axes" -> axes), "r" + opIndex)
                 localClientRequestManager.submitRequest(false, "CDS.workflow", List(domain), variables.toList, List(op))

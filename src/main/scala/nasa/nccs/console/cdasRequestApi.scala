@@ -40,6 +40,7 @@ class Collection( val id: String, val uri: String, val path: String )  extends W
 class Axis(val id: String, val start: GenericNumber, val end: GenericNumber, val system: String ) extends WpsNode {
 
   def toWps: String = """"%s":{"start":%s,"end":%s,"system":"%s"}""".format( id, getBoundStr(start), getBoundStr(end), system )
+  override def toString: String = """"%s":[%s,%s,"%s"]""".format( id, getBoundStr(start), getBoundStr(end), system )
 
   def getBoundStr( value: GenericNumber ): String = {
     system match {
@@ -59,8 +60,7 @@ class Domain( val id: String, val axes: List[Axis] = List.empty[Axis] )  extends
 
 
 class Operation( val pkg: String, val kernel: String, val input_uids: Array[String], val args: Map[String,String], val result_id:String = "" )  extends WpsNode {
-  val identifier = pkg + "." + kernel
-  def toWps(): String = """ {"name":"%s","input":}""".format( identifier )
+  def toWps(): String = """{"name":"%s","input":"%s"}""".format( kernel, input_uids.mkString(",") )
 }
 
 
@@ -82,7 +82,7 @@ class CDASClientRequestManager( val server: String ="localhost", val port: Int =
     "datainputs=" + Array( toDomainWps(domains:_*), toVariableWps(variables:_*), toOperationWps(operations:_*) ).flatten.mkString("[",",","]")
 
   def getRequest(async: Boolean, identifier: String, domains: List[Domain], variables: List[WpsData], operations: List[Operation]): String = {
-    Array( getBaseRequest(async), "identifier="+identifier, getDatainputs( domains, variables, operations) ).mkString("&")
+    Array( getBaseRequest(async), "identifier="+identifier, getDatainputs( domains, variables, operations) ).mkString("&").replaceAll("\\s+","")
   }
 
   def submitRequest( request: String ): xml.Elem = scala.xml.XML.loadString( scala.io.Source.fromURL( request ).mkString )
