@@ -48,6 +48,7 @@ class ShellState( val handlerStack: Vector[CommandHandler], val history: Vector[
   def delegate( handler: CommandHandler ): ShellState = {  handler.process( pushHandler(handler) )  }
   def getPrompt = { handlerStack.last.getPrompt( this ) }
   def getTopCommand = history.last
+  def popTopCommand = new ShellState( handlerStack, history.dropRight(1), props )
   def getTopHandler = handlerStack.last
   def getStackStr = handlerStack.map( _.id ).mkString( "( ",", "," )")
   def sameHandler( handler: ShellState ): Boolean = { getTopHandler == handler.getTopHandler }
@@ -82,7 +83,7 @@ final class MultiStepCommandHandler( name: String, description: String, val prom
         else                      executor( state.history.takeRight(_length), state ).popHandler()
       case Some( errorMsg ) =>
         val new_prompts = s"Input error: $errorMsg, please try again: " +: prompts.drop(1)
-        state.updateHandler( new MultiStepCommandHandler(name, description, new_prompts, validators, executor, _length ) )
+        state.popTopCommand.updateHandler( new MultiStepCommandHandler(name, description, new_prompts, validators, executor, _length ) )
     }
   }
   def getPrompt( state: ShellState ) = prompts.head
@@ -118,6 +119,7 @@ final class ListSelectionCommandHandler( name: String, description: String, val 
       executor( args.map( arg => getChoices(state)(arg.toInt) ), state ).popHandler()
     } catch {
       case t: Throwable =>
+        println( t.getMessage )
         state.updateHandler( new ListSelectionCommandHandler(name, description, getChoices, executor, true) )
     }
   }

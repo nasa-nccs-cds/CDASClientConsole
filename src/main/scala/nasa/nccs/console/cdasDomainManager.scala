@@ -28,6 +28,7 @@ object cdasDomainManager {
   }
 
   def createDomainAxis( id:String, input: String ): Option[Axis] = {
+    println( s"Creating domain axis ($id): $input" )
     if(input.isEmpty) None else {
       val args = getArgs(input)
       val vtype = args(0) match {

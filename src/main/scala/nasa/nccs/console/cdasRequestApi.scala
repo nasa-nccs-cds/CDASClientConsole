@@ -9,6 +9,7 @@ trait NodeProcessor {
 
 trait WpsNode extends NodeProcessor {
   def toWps: String
+  override def toString: String = toWps
 }
 
 trait WpsData extends WpsNode {}
@@ -23,6 +24,7 @@ object Variable extends NodeProcessor {
 
 class Variable( val uid: String, val uri: String, val varname: String, val domain_id: String ) extends WpsData {
   def toWps: String = """{"uri":"%s","name":"%s:%s","domain":"%s"}""".format( uri, varname, uid, domain_id )
+  override def toString: String = toWps
 }
 
 object Collection extends NodeProcessor {
@@ -35,6 +37,7 @@ object Collection extends NodeProcessor {
 
 class Collection( val id: String, val uri: String, val path: String )  extends WpsData {
   def toWps: String = """{"id":"%s","uri":"%s","path":"%s"}""".format( id, uri, path )
+  override def toString: String = toWps
 }
 
 class Axis(val id: String, val start: GenericNumber, val end: GenericNumber, val system: String ) extends WpsNode {
@@ -56,11 +59,14 @@ class Domain( val id: String, val axes: List[Axis] = List.empty[Axis] )  extends
   def toWps: String =
     if( axes.length == 0 ) """{"name":"%s"}""".format(id)
     else """{"name":"%s",%s}""".format( id, axes.map(_.toWps).mkString(",") )
+
+  override def toString: String = toWps
 }
 
 
 class Operation( val pkg: String, val kernel: String, val input_uids: Array[String], val args: Map[String,String], val result_id:String = "" )  extends WpsNode {
   def toWps(): String = """{"name":"%s","input":"%s"}""".format( kernel, input_uids.mkString(",") )
+  override def toString: String = toWps
 }
 
 
@@ -85,7 +91,12 @@ class CDASClientRequestManager( val server: String ="localhost", val port: Int =
     Array( getBaseRequest(async), "identifier="+identifier, getDatainputs( domains, variables, operations) ).mkString("&").replaceAll("\\s+","")
   }
 
-  def submitRequest( request: String ): xml.Elem = scala.xml.XML.loadString( scala.io.Source.fromURL( request ).mkString )
+  def submitRequest( request: String ): xml.Elem = try {
+    scala.xml.XML.loadString(scala.io.Source.fromURL(request).mkString)
+  } catch {
+    case err: java.net.ConnectException => <error> { "Error connecting to analytics server: " + err.getMessage } </error>
+    case error: Exception => <error> { "Error executing Request: " + error.getMessage } </error>
+  }
 
   def requestCapabilities(identifier: String): xml.Elem = submitRequest( getCapabilities(identifier) )
 

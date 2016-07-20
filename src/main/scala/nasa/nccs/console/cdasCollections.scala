@@ -51,7 +51,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     val path = inputs(1)
     val uri: String = "collection:/" + id
     val collection = new Collection(id,uri,path)
-    val results = localClientRequestManager.submitRequest( false, "util.agg", List.empty[Domain], List(collection), List.empty[Operation] )
+    val results = localClientRequestManager.submitRequest( true, "util.agg", List.empty[Domain], List(collection), List.empty[Operation] )
     updateCollections( for( result <- results.child; collection <- result.child ) yield collection )
     state :+ Map( "results" -> results )
   }
@@ -70,7 +70,22 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
           case Some(varNodes) => for ((varNode, index) <- varNodes.child.zipWithIndex; variable = Variable(varNode, "v" + index, domid); if (!variable.varname.isEmpty)) yield variable
         }
         if (variables.isEmpty) state
-        else state :+ Map("results" -> localClientRequestManager.submitRequest(false, "util.cache", List(domain), variables.toList, List.empty[Operation]))
+        else state :+ Map("results" -> localClientRequestManager.submitRequest(true, "util.cache", List(domain), variables.toList, List.empty[Operation]))
+    }
+  }
+
+  def getResult( state: ShellState ): ShellState = {
+    state.props.get("access") match {
+      case None => println("Error: Missing Access Method!"); state
+      case Some( access_method ) =>
+        state.props.get("result") match {
+          case None => println("Error: Missing Result ID!"); state
+          case Some( resultId ) =>
+            val variable = new Variable( resultId.text, "", "","" )
+            println("Submmitting request for result, id = util.gres:"+access_method.text)
+            val result = localClientRequestManager.submitRequest( false, "util.gres:"+access_method.text, List.empty[Domain], List(variable), List.empty[Operation] )
+            state :+ Map("results" -> result )
+        }
     }
   }
 
@@ -105,10 +120,11 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
               for( (opSpec, opIndex) <- operations.zipWithIndex; if( !opSpec._1.isEmpty && !opSpec._2.isEmpty )) yield {
                 val input_uids: Array[String] = variables.map(_.uid).toArray
                 val op = new Operation(opSpec._1, opSpec._2, input_uids, Map("axes" -> axes), "r" + opIndex)
-                localClientRequestManager.submitRequest(false, "CDS.workflow", List(domain), variables.toList, List(op))
+                localClientRequestManager.submitRequest(true, "CDS.workflow", List(domain), variables.toList, List(op))
               }
               } </results>
-            state :+ Map("results" -> results)
+            println( results.toString() )
+            state :+ Map("results" -> results )
           }
         }
     }
@@ -133,6 +149,23 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
       Vector( "Enter collection id >>", "Enter path to dataset directory >>" ),
       Vector( validCollectionId(false) _, validDirecory ),
       aggregateDataset
+    )
+  }
+
+  def getResultCommand: SequentialCommandHandler = {
+    new SequentialCommandHandler("[gr]esult", "Get result of analytics operation",
+      Vector( selectResultCommand,
+        new ListSelectionCommandHandler("[sa]ccess", "Select access method", (state) => Array( "Display as xml", "Save to NetCDF file"),
+          ( methods, state ) => state :+ Map( "access" ->
+            <access> {
+              methods.head match {
+                case x if x.startsWith("Disp") => "xml";
+                case x if x.startsWith("Save") => "netcdf";
+                case x => ""
+              }} </access>)
+        )
+      ),
+      getResult
     )
   }
 
@@ -190,6 +223,11 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     else response.child.filterNot(_.label.startsWith("#")).map(cNode => cNode.toString.replace('\n',' ')).toArray
   }
 
+  def requestResultList(): Array[String] = {
+    val response = requestManager.requestCapabilities("result")
+    if( response.label == "error" ) { logger.error( response.text ); Array.empty[String] }
+    else response.child.filterNot(_.label.startsWith("#")).map(cNode => cNode.toString.replace('\n',' ')).toArray
+  }
   def removeCollections( collectionXmls: Array[String] ) = {
     val collectionMap = getCollectionMap
     val cids = collectionXmls.map( collectionXml => attr( xml.XML.loadString(collectionXml), "id" ) )
@@ -205,6 +243,13 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     val frags = fragXmls.map( fragXml => xml.XML.loadString(fragXml) )
     val variables: Array[WpsData] = for((frag, index) <- frags.zipWithIndex) yield new Variable("v"+index,attr(frag,"url"),attr(frag,"variable"),attr(frag,"origin")+"|"+attr(frag,"shape"))  //  def toFragKey =  "%s|%s|%s|%s".format( varname, collectionUrl, origin.mkString(","), shape.mkString(","))  TODO: Finish this :
     val results = localClientRequestManager.submitRequest( false, "util.dfrag", List.empty[Domain], variables.toList, List.empty[Operation] )
+    _collections = None
+  }
+
+  def removeResults( resultIds: Array[String] ) = {
+    println( "Remove results: " + resultIds.mkString(",") )
+    val variables: Array[WpsData] = for(resultId <- resultIds) yield new Variable(resultId,"","","")  //  def toFragKey =  "%s|%s|%s|%s".format( varname, collectionUrl, origin.mkString(","), shape.mkString(","))  TODO: Finish this :
+    val results = localClientRequestManager.submitRequest( false, "util.dres", List.empty[Domain], variables.toList, List.empty[Operation] )
     _collections = None
   }
 
@@ -240,6 +285,15 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   def deleteFragmentsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[df]ragments", "Delete specified data fragments from the cache", (state) => requestFragmentList, (fragments:Array[String],state) => { removeFragments( fragments ); ; state } )
   }
+  def listResultsCommand: ListSelectionCommandHandler = {
+    new ListSelectionCommandHandler("[lr]esults", "List execution results", (state) =>requestResultList, (resultIds,state) => { resultIds.foreach( resultId => println( resultId )); state } )
+  }
+  def selectResultCommand: ListSelectionCommandHandler = {
+    new ListSelectionCommandHandler("[sr]esult", "Select execution result", (state) =>requestResultList, (resultIds,state) => { state :+ Map( "result" -> <result> {resultIds.head} </result> ); state } )
+  }
+  def deleteResultsCommand: ListSelectionCommandHandler = {
+    new ListSelectionCommandHandler("[dr]esults", "Delete specified execution results", (state) => requestResultList, (resultEntries:Array[String],state) => { removeResults( resultEntries ); state } )
+  }
 
 }
 
@@ -253,6 +307,9 @@ object collectionsConsoleTest extends App {
     cdasCollections.listFragmentsCommand,
     cdasCollections.deleteFragmentsCommand,
     cdasCollections.listOperationsCommand,
+    cdasCollections.listResultsCommand,
+    cdasCollections.deleteResultsCommand,
+    cdasCollections.getResultCommand,
     cdasDomainManager.defineDomainHandler,
     cdasCollections.exeOperationCommand,
     new HistoryHandler( "[hi]story",  (value: String) => println( s"History Selection: $value" )  ),
