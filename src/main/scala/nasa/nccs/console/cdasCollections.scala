@@ -224,23 +224,16 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     case Some(response) => response.child.filterNot(_.label.startsWith("#")).map(cNode => cNode.toString.replace('\n',' ')).toArray
   }
 
-  def requestOperationsList(): Array[String] = {
-    val response = requestManager.requestCapabilities("operation")
+  def listCapabilities( capability: String ): Array[String] = {
+    val response = requestManager.requestCapabilities(capability)
     if( response.label == "error" ) { logger.error( response.text ); Array.empty[String] }
-    else response.child.filterNot(_.label.startsWith("#")).map( opNode => opNode.toString.replace('\n',' ') ).toArray
+    else response.child.filterNot(_.label.startsWith("#")).map( node => node.toString.replace('\n',' ') ).toArray
   }
+  def requestOperationsList(): Array[String] = listCapabilities("operation")
+  def requestFragmentList(): Array[String]  = listCapabilities("fragment")
+  def requestResultList(): Array[String]  = listCapabilities("result")
+  def requestJobList(): Array[String]  = listCapabilities("job")
 
-  def requestFragmentList(): Array[String] = {
-    val response = requestManager.requestCapabilities("fragment")
-    if( response.label == "error" ) { logger.error( response.text ); Array.empty[String] }
-    else response.child.filterNot(_.label.startsWith("#")).map(cNode => cNode.toString.replace('\n',' ')).toArray
-  }
-
-  def requestResultList(): Array[String] = {
-    val response = requestManager.requestCapabilities("result")
-    if( response.label == "error" ) { logger.error( response.text ); Array.empty[String] }
-    else response.child.filterNot(_.label.startsWith("#")).map(cNode => cNode.toString.replace('\n',' ')).toArray
-  }
   def removeCollections( collectionXmls: Array[String] ) = {
     val collectionMap = getCollectionMap
     val cids = collectionXmls.map( collectionXml => attr( xml.XML.loadString(collectionXml), "id" ) )
@@ -294,6 +287,9 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   def listResultsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[lr]esults", "List execution results", (state) =>requestResultList, (resultIds, state) => { resultIds.foreach( resultId => println( resultId )); state } )
   }
+  def listJobsCommand: ListSelectionCommandHandler = {
+    new ListSelectionCommandHandler("[lj]obs", "List executing task requests", (state) =>requestJobList, (jobIds, state) => { jobIds.foreach( jobId => println( jobId )); state } )
+  }
   def selectResultCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[sr]esult", "Select execution result", (state) =>requestResultList, (resultIds, state) => state :+ Map( "result" -> <results> { resultIds.map( elemStr => xml.XML.loadString(elemStr) ) } </results> ) )
   }
@@ -314,6 +310,7 @@ object collectionsConsoleTest extends App {
     cdasCollections.deleteFragmentsCommand,
     cdasCollections.listOperationsCommand,
     cdasCollections.listResultsCommand,
+    cdasCollections.listJobsCommand,
     cdasCollections.deleteResultsCommand,
     cdasCollections.getResultCommand,
     cdasDomainManager.defineDomainHandler,
