@@ -76,17 +76,30 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
 
   def getResult( state: ShellState ): ShellState = {
     state.props.get("access") match {
-      case None => println("Error: Missing Access Method!"); state
+      case None => println("Error: Missing Access Method!  --keys: " + state.props.keys.mkString(", "));  state
       case Some( access_method ) =>
         state.props.get("result") match {
-          case None => println("Error: Missing Result ID!"); state
-          case Some( resultId ) =>
-            val variable = new Variable( resultId.text, "", "","" )
-            println("Submmitting request for result, id = util.gres:"+access_method.text)
-            val result = localClientRequestManager.submitRequest( false, "util.gres:"+access_method.text, List.empty[Domain], List(variable), List.empty[Operation] )
-            state :+ Map("results" -> result )
+          case None => println("Error: Missing Result ID!  --keys: " + state.props.keys.mkString(", ")); state
+          case Some( resultsElem ) =>
+            resultsElem.child.filter(_.label=="result").headOption match {
+              case None => println("Error: Missing Result  --nodes: " + resultsElem.child.map(_.label).mkString(",")); state
+              case Some(rnode) =>
+                val rid = attr (rnode, "id")
+                val variable = new Variable (rid, "", rid, "")
+                println ("Submmitting request for result, id = util.gres:" + access_method.text)
+                val result = localClientRequestManager.submitRequest (false, "util.gres:" + access_method.text, List.empty[Domain], List (variable), List.empty[Operation] )
+                state :+ Map ("results" -> result)
+            }
         }
     }
+  }
+
+  def removeResults( resultNodes: Array[String] ) = {
+    val rids = resultNodes.map( elemStr => xml.XML.loadString(elemStr) ).filter(_.label=="result").map( n => attr(n,"id") )
+    println( "Remove results: " + rids.mkString(",") )
+    val variables: Array[WpsData] = for(rid <- rids) yield new Variable(rid,"",rid,"")  //  def toFragKey =  "%s|%s|%s|%s".format( varname, collectionUrl, origin.mkString(","), shape.mkString(","))  TODO: Finish this :
+    val results = localClientRequestManager.submitRequest( false, "util.dres", List.empty[Domain], variables.toList, List.empty[Operation] )
+    _collections = None
   }
 
   def exeOperation( state: ShellState ): ShellState = {
@@ -246,53 +259,46 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     _collections = None
   }
 
-  def removeResults( resultIds: Array[String] ) = {
-    println( "Remove results: " + resultIds.mkString(",") )
-    val variables: Array[WpsData] = for(resultId <- resultIds) yield new Variable(resultId,"","","")  //  def toFragKey =  "%s|%s|%s|%s".format( varname, collectionUrl, origin.mkString(","), shape.mkString(","))  TODO: Finish this :
-    val results = localClientRequestManager.submitRequest( false, "util.dres", List.empty[Domain], variables.toList, List.empty[Operation] )
-    _collections = None
-  }
-
   def removeFragment( fid: String ) = println( "Remove Fragment: " + fid)
   def printCollectionMetadata( collectionId: String  ): Unit = println( collectionId ) // printer.format( getCollection( collectionId ) ) )
   def printFragmentMetadata( fragDesc: String  ): Unit = println( fragDesc )
 
   def listCollectionsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[lc]ollections", "List collection metadata", (state) => requestCollectionsList, (collections:Array[String],state) => { collections.foreach( collection => printCollectionMetadata(collection)); state } )
+    new ListSelectionCommandHandler("[lc]ollections", "List collection metadata", (state) => requestCollectionsList, (collections,state) => { collections.foreach( collection => printCollectionMetadata(collection)); state } )
   }
   def deleteCollectionsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[dc]ollections", "Delete specified collections", (state) => requestCollectionsList, (collections:Array[String],state) => { removeCollections( collections ); state } )
+    new ListSelectionCommandHandler("[dc]ollections", "Delete specified collections", (state) => requestCollectionsList, (collections,state) => { removeCollections( collections ); state } )
   }
   def selectCollectionsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[sc]ollections", "Select collection(s)", (state) => requestCollectionsList, ( collections:Array[String], state ) => state :+ Map( "collections" -> <collections> { collections.map( collection => xml.XML.loadString(collection)) } </collections> )  )
+    new ListSelectionCommandHandler("[sc]ollections", "Select collection(s)", (state) => requestCollectionsList, ( collections, state ) => state :+ Map( "collections" -> <collections> { collections.map( collection => xml.XML.loadString(collection)) } </collections> )  )
   }
   def selectOperationsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[so]peration", "Select operation(s)", (state) => requestOperationsList, ( operations:Array[String], state ) => state :+ Map( "operations" -> <operations> { operations.map( operation => xml.XML.loadString(operation)) } </operations> )  )
+    new ListSelectionCommandHandler("[so]peration", "Select operation(s)", (state) => requestOperationsList, ( operations, state ) => state :+ Map( "operations" -> <operations> { operations.map( operation => xml.XML.loadString(operation)) } </operations> )  )
   }
   def selectAxesCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[sa]xes", "Select axes", (state) => Array("x","y","z","t"), ( axes:Array[String], state ) => state :+ Map( "axes" -> <axes> { axes.mkString(",") } </axes> )  )
+    new ListSelectionCommandHandler("[sa]xes", "Select axes", (state) => Array("x","y","z","t"), ( axes, state ) => state :+ Map( "axes" -> <axes> { axes.mkString(",") } </axes> )  )
   }
   def listOperationsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[lo]peration", "Select operation(s)", (state) => requestOperationsList, ( operations:Array[String], state ) => state :+ Map( "operations" -> <operations> { operations.map( operation => xml.XML.loadString(operation)) } </operations> )  )
+    new ListSelectionCommandHandler("[lo]peration", "Select operation(s)", (state) => requestOperationsList, (operations, state) => state :+ Map( "operations" -> <operations> { operations.map( operation => xml.XML.loadString(operation)) } </operations> )  )
   }
   def selectVariablesCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[sv]ariables", "Select variables from selected collection(s)", requestVariableList, (cids:Array[String],state) => { state :+ Map( "variables" -> <variables> { cids.map( cid => xml.XML.loadString(cid)) } </variables> ) } )
+    new ListSelectionCommandHandler("[sv]ariables", "Select variables from selected collection(s)", requestVariableList, (cids, state) => { state :+ Map( "variables" -> <variables> { cids.map( cid => xml.XML.loadString(cid)) } </variables> ) } )
   }
 
   def listFragmentsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[lf]ragments", "List cached data fragments", (state) =>requestFragmentList, (fragEntries:Array[String],state) => { fragEntries.foreach( fragDesc => printFragmentMetadata( fragDesc ) ); state } )
+    new ListSelectionCommandHandler("[lf]ragments", "List cached data fragments", (state) =>requestFragmentList, (fragEntries, state) => { fragEntries.foreach( fragDesc => printFragmentMetadata( fragDesc ) ); state } )
   }
   def deleteFragmentsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[df]ragments", "Delete specified data fragments from the cache", (state) => requestFragmentList, (fragments:Array[String],state) => { removeFragments( fragments ); ; state } )
+    new ListSelectionCommandHandler("[df]ragments", "Delete specified data fragments from the cache", (state) => requestFragmentList, (fragments,state) => { removeFragments( fragments ); ; state } )
   }
   def listResultsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[lr]esults", "List execution results", (state) =>requestResultList, (resultIds,state) => { resultIds.foreach( resultId => println( resultId )); state } )
+    new ListSelectionCommandHandler("[lr]esults", "List execution results", (state) =>requestResultList, (resultIds, state) => { resultIds.foreach( resultId => println( resultId )); state } )
   }
   def selectResultCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[sr]esult", "Select execution result", (state) =>requestResultList, (resultIds,state) => { state :+ Map( "result" -> <result> {resultIds.head} </result> ); state } )
+    new ListSelectionCommandHandler("[sr]esult", "Select execution result", (state) =>requestResultList, (resultIds, state) => state :+ Map( "result" -> <results> { resultIds.map( elemStr => xml.XML.loadString(elemStr) ) } </results> ) )
   }
   def deleteResultsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[dr]esults", "Delete specified execution results", (state) => requestResultList, (resultEntries:Array[String],state) => { removeResults( resultEntries ); state } )
+    new ListSelectionCommandHandler("[dr]esults", "Delete specified execution results", (state) => requestResultList, (resultIds, state) => { removeResults( resultIds ); state } )
   }
 
 }
