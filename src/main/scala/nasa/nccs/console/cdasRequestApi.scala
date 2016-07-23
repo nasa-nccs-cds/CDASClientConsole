@@ -65,7 +65,7 @@ class Domain( val id: String, val axes: List[Axis] = List.empty[Axis] )  extends
 
 
 class Operation( val pkg: String, val kernel: String, val input_uids: Array[String], val args: Map[String,String], val result_id:String = "" )  extends WpsNode {
-  def toWps(): String = """{"name":"%s","input":"%s"}""".format( kernel, input_uids.mkString(",") )
+  def toWps(): String = """{"name":"%s","input":"%s", %s }""".format( kernel, input_uids.mkString(","), args.map { case (k,v) => s""""$k":"$v""""  }.mkString(", ") )
   override def toString: String = toWps
 }
 
