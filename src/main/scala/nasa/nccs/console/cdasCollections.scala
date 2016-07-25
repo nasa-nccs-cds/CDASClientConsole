@@ -97,6 +97,15 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     _collections = None
   }
 
+  def printVariableMetadata( state: ShellState ): ShellState = {
+    state.props.get("variables") match {
+      case None => Unit
+      case Some( varNodes ) =>
+        val varIdList = varNodes.child.filterNot( varNode => attr(varNode,"id").isEmpty ).map( varNode => attr(varNode,"id") + "!" + attr(varNode,"collection") ).mkString(",")
+        println( printer.format(  requestMetadata( "variables", varIdList ) ) )
+    }
+    state
+  }
   def exeOperation( state: ShellState ): ShellState = {
     println( " exeOperation, prop vals = " + state.props.values.map( _.mkString(",") ).mkString(" -- ") )
     val domid = state.props.get("domains") match {
@@ -192,6 +201,13 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     )
   }
 
+  def listVariablesCommand: SequentialCommandHandler = {
+    new SequentialCommandHandler("[lv]ariables", "List Variables",
+      Vector( selectCollectionsCommand, selectVariablesCommand ),
+      printVariableMetadata
+    )
+  }
+
   def requestVariableList(state: ShellState): Array[String] = {
     state.getProp("collections")  match {
       case Some( collections ) => {
@@ -211,6 +227,12 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     requestManager.requestCapabilities("collections") match {
       case response if( response.label == "error" ) => logger.error( response.text ); None
       case response => Some(response)
+    }
+  }
+  def requestMetadata( mdtype: String, idList: String ): xml.Node = {
+    requestManager.requestCapabilities( mdtype + ":" + idList ) match {
+      case response if( response.label == "error" ) => <error message={response.text}></error>
+      case response => response
     }
   }
 
@@ -248,7 +270,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   }
 
   def removeFragment( fid: String ) = println( "Remove Fragment: " + fid)
-  def printCollectionMetadata( collectionId: String  ): Unit = println( collectionId ) // printer.format( getCollection( collectionId ) ) )
+  def printCollectionMetadata( collectionNode: String  ): Unit = println( printer.format( requestMetadata( "collections", attr( xml.XML.loadString( collectionNode ), "id" ) ) ) )
   def printFragmentMetadata( fragDesc: String  ): Unit = println( fragDesc )
 
   def listCollectionsCommand: ListSelectionCommandHandler = {
@@ -336,6 +358,7 @@ object collectionsConsoleTest extends App {
     cdasCollections.getResultFileCommand,
     cdasDomainManager.defineDomainHandler,
     cdasCollections.exeOperationCommand,
+    cdasCollections.listVariablesCommand,
     new HistoryHandler( "[hi]story",  (value: String) => println( s"History Selection: $value" )  ),
     new HelpHandler( "[h]elp", "Command Help" )
   )
