@@ -10,6 +10,7 @@ object cdasDomainManager {
 
   private val domainMap = new ConcurrentLinkedHashMap.Builder[String, Domain ].initialCapacity(100).maximumWeightedCapacity(10000).build()
   domainMap.put( "d0", new Domain( "d0" ) )
+  domainMap.put( "d1", new Domain( "d1", List( new Axis( "lev", 0, 0, "indices" ) ) ) )
   def getDomain(domId: String ): Option[Domain] = Option(domainMap.get(domId))
   def putDomain(domId: String, domain: Domain ) = domainMap.put(domId, domain)
 

@@ -50,9 +50,9 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     val id = inputs(0)
     val path = inputs(1)
     val uri: String = "collection:/" + id
-    val collection = new Collection(id,uri,path)
-    val results = localClientRequestManager.submitRequest( true, "util.agg", List.empty[Domain], List(collection), List.empty[Operation] )
-    updateCollections( for( result <- results.child; collection <- result.child ) yield collection )
+    val collections = List(new Collection(id,uri,path))
+    val results = localClientRequestManager.submitRequest( true, "util.agg", List.empty[Domain], collections, List.empty[Operation] )
+    _collections = None
     state :+ Map( "results" -> results )
   }
 
