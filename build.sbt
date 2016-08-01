@@ -47,7 +47,7 @@ cdasProperties := {
   prop
 }
 
-resolvers += Resolver.file("Local CDAS repo", getPublishDir( cdasProperties.value ) )
+resolvers += "Local CDAS Repository" at "file:///" + getPublishDir( cdasProperties.value ).toString
 
 def getPublishDir( properties: Properties ): File =
   sys.env.get("SBT_PUBLISH_DIR") match {
