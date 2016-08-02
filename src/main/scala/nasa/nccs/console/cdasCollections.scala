@@ -45,13 +45,14 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     case None => None
   }
 
-  def aggregateDataset( inputs: Vector[String], state: ShellState ): ShellState = {
+  def aggregateDataset( multiple: Boolean )( inputs: Vector[String], state: ShellState ): ShellState = {
     println( " aggregateDataset, inputs = " + inputs.mkString(", ") )
     val id = inputs(0)
     val path = inputs(1)
     val uri: String = "collection:/" + id
     val collections = List(new Collection(id,uri,path))
-    val results = localClientRequestManager.submitRequest( true, "util.agg", List.empty[Domain], collections, List.empty[Operation] )
+    val ident = if( multiple ) "util.magg" else  "util.agg"
+    val results = localClientRequestManager.submitRequest( true, ident, List.empty[Domain], collections, List.empty[Operation] )
     _collections = None
     state :+ Map( "results" -> results )
   }
@@ -165,7 +166,15 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     new MultiStepCommandHandler("[ag]gregate", "Create collection by defining aggregated dataset",
       Vector( "Enter collection id >>", "Enter path to dataset directory >>" ),
       Vector( validCollectionId(false) _, validDirecory ),
-      aggregateDataset
+      aggregateDataset(false)
+    )
+  }
+
+  def aggregateMultipleDatasetsCommand: MultiStepCommandHandler = {
+    new MultiStepCommandHandler("[mag]gregate", "Create collections by defining multiple aggregated datasets",
+      Vector( "Enter base collection id >>", "Enter path to directory containing datasets>>" ),
+      Vector( validCollectionId(false) _, validDirecory ),
+      aggregateDataset(true)
     )
   }
 
@@ -346,6 +355,7 @@ object collectionsConsoleTest extends App {
   val cdasCollections = new CdasCollections( new CDASClientRequestManager( ) )
   val handlers = Array(
     cdasCollections.aggregateDatasetCommand,
+    cdasCollections.aggregateMultipleDatasetsCommand,
     cdasCollections.cacheFragmentCommand,
     cdasCollections.listCollectionsCommand,
     cdasCollections.deleteCollectionsCommand,
