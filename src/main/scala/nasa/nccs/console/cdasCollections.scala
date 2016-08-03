@@ -302,7 +302,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   }
   def selectCollectionsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[sc]ollections", "Select collection(s)", (state) => requestCollectionsList,
-      ( collections, state ) => state :+ Map( "collections" -> <collections> { collections.map( collection => xml.XML.loadString(collection)) } </collections> )  )
+      ( collections, state ) => state :+ Map( "collections" -> <collections> { val colMap = getCollectionMap; collections.flatMap( collID => colMap.get(collID) ) } </collections> )  )
   }
   def selectOperationsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[so]peration", "Select operation(s)", (state) => requestOperationsList,
