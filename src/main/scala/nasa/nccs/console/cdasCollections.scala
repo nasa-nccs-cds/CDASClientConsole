@@ -279,7 +279,14 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   }
 
   def removeFragment( fid: String ) = println( "Remove Fragment: " + fid)
-  def printCollectionMetadata( collectionNode: String  ): Unit = println( printer.format( requestMetadata( "collections", attr( xml.XML.loadString( collectionNode ), "id" ) ) ) )
+
+  def printCollectionMetadata( collectionStr: String  ): Unit = {
+    val cid = collectionStr.trim match {
+      case xmlNodeStr if xmlNodeStr.startsWith("<") => attr( xml.XML.loadString( xmlNodeStr ), "id" )
+      case collId => collId
+    }
+    println( printer.format( requestMetadata( "collections", cid ) ) )
+  }
   def printFragmentMetadata( fragDesc: String  ): Unit = println( fragDesc )
 
   def listCollectionsCommand: ListSelectionCommandHandler = {
