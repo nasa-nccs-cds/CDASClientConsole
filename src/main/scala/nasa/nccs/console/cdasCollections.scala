@@ -247,7 +247,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
 
   def requestCollectionsList(): Array[String] = getCollections match {
     case None => Array.empty[String]
-    case Some(response) => response.child.filterNot(_.label.startsWith("#")).map(cNode => cNode.toString.replace('\n',' ')).toArray
+    case Some(response) => response.child.filterNot(_.label.startsWith("#")).map( cNode => attr(cNode,"id") ).toArray
   }
 
   def listCapabilities( capability: String ): Array[String] = {
