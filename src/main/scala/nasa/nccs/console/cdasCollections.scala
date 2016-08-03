@@ -260,9 +260,9 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   def requestResultList(): Array[String]  = listCapabilities("result")
   def requestJobList(): Array[String]  = listCapabilities("job")
 
-  def removeCollections( collectionXmls: Array[String] ) = {
+  def removeCollections( selectedCols: Array[String] ) = {
     val collectionMap = getCollectionMap
-    val cids = collectionXmls.map( collectionXml => attr( xml.XML.loadString(collectionXml), "id" ) )
+    val cids = selectedCols.map( selectedCol => extractAttribute(selectedCol,"id") )
     println( "Collection keys -> " + collectionMap.keys.mkString(",") )
     val cList = cids.flatMap( cid => collectionMap.get( cid ) ).toList
     println( "  ------> RemoveCollection( " + cids(0) + " ) -> " + cList.mkString(",") )
@@ -280,13 +280,16 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
 
   def removeFragment( fid: String ) = println( "Remove Fragment: " + fid)
 
-  def printCollectionMetadata( collectionStr: String  ): Unit = {
-    val cid = collectionStr.trim match {
-      case xmlNodeStr if xmlNodeStr.startsWith("<") => attr( xml.XML.loadString( xmlNodeStr ), "id" )
-      case collId => collId
+  def extractAttribute( input: String, attrId: String = "id" ): String = {
+    input.trim match {
+      case xmlStrVal if xmlStrVal.startsWith("<") => attr( xml.XML.loadString( xmlStrVal ), attrId )
+      case attrStrVal => attrStrVal
     }
-    println( printer.format( requestMetadata( "collections", cid ) ) )
   }
+
+  def printCollectionMetadata( collectionStr: String  ): Unit =
+    println( printer.format( requestMetadata( "collections", extractAttribute(collectionStr) ) ) )
+
   def printFragmentMetadata( fragDesc: String  ): Unit = println( fragDesc )
 
   def listCollectionsCommand: ListSelectionCommandHandler = {
