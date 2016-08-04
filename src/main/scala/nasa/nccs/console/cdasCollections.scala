@@ -221,6 +221,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     state.getProp("collections")  match {
       case Some( collections ) => {
         collections.child.flatMap( cnode => {
+          println( " ** Getting variables for collection: " + cnode.toString )
           cnode.attribute("id") match {
             case Some( coll_id ) => Some( cnode.text.replace(',',' ').split("\\s+").filter(!_.isEmpty).map( id => <variable id={id} collection={coll_id}/>.toString ) )
             case None => None
@@ -302,7 +303,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   }
   def selectCollectionsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[sc]ollections", "Select collection(s)", (state) => requestCollectionsList,
-      ( collections, state ) => state :+ Map( "collections" -> <collections> { val colMap = getCollectionMap; collections.flatMap( collID => colMap.get(collID) ) } </collections> )  )
+      ( collections, state ) => state :+ Map( "collections" -> <collections> { collections.map( collID => <collection id={collID}/> ) } </collections> )  )
   }
   def selectOperationsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[so]peration", "Select operation(s)", (state) => requestOperationsList,
