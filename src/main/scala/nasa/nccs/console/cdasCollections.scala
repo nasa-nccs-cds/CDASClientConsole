@@ -234,7 +234,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
         collections.child.flatMap( cidnode => {
           attrOpt(cidnode,"id") match {
             case Some( cid ) => collMap.get( cid ) match {
-              case Some( cnode ) => Some( cnode.text.replace (',', ' ').split ("\\s+").filter (! _.isEmpty).map (id => <variable id={id}collection={cid}/>.toString) )
+              case Some( cnode ) => Some( cnode.text.replace (',', ' ').split ("\\s+").filter (! _.isEmpty).map (id => <variable id={id} collection={cid}/>.toString) )
               case None => None
               }
             case None => None
