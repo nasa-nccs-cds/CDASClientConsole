@@ -29,6 +29,16 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     }
     Map( collections.map( col => (col.id -> col ) ):_* )
   }
+
+  def getCollectionNodeMap: Map[String,xml.Node] = {
+    updateCollections
+    val cNodes: Seq[xml.Node] = _collections match {
+      case None => Seq.empty[xml.Node]
+      case Some(collNodes) => collNodes.child
+    }
+    Map( cNodes.map( cNode => ( attr(cNode,"id") -> cNode ) ):_* )
+  }
+
   def attr( node: xml.Node, att_name: String ): String = { node.attribute(att_name) match { case None => ""; case Some(x) => x.toString }}
   def attrOpt( node: xml.Node, att_name: String ): Option[String] = node.attribute(att_name).map( _.toString )
 
@@ -218,12 +228,15 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   }
 
   def requestVariableList(state: ShellState): Array[String] = {
+    val collMap = getCollectionNodeMap
     state.getProp("collections")  match {
       case Some( collections ) => {
-        collections.child.flatMap( cnode => {
-          println( " ** Getting variables for collection: " + cnode.toString )
-          cnode.attribute("id") match {
-            case Some( coll_id ) => Some( cnode.text.replace(',',' ').split("\\s+").filter(!_.isEmpty).map( id => <variable id={id} collection={coll_id}/>.toString ) )
+        collections.child.flatMap( cidnode => {
+          attrOpt(cidnode,"id") match {
+            case Some( cid ) => collMap.get( cid ) match {
+              case Some( cnode ) => Some( cnode.text.replace (',', ' ').split ("\\s+").filter (! _.isEmpty).map (id => <variable id={id}collection={cid}/>.toString) )
+              case None => None
+              }
             case None => None
         }} ).foldLeft(Array.empty[String])(_ ++ _) }
       case None => println( "++++ UNDEF Collections! "); Array.empty[String]
