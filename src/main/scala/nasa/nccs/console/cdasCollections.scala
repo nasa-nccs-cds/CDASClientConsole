@@ -227,7 +227,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     )
   }
 
-  def requestVariableList(state: ShellState): Array[String] = {
+  def requestVariableList(state: ShellState): Array[String] = {  
     val collMap = getCollectionNodeMap
     state.getProp("collections")  match {
       case Some( collections ) => {
