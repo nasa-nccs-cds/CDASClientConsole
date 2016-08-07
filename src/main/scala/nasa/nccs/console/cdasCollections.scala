@@ -227,14 +227,14 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     )
   }
 
-  def requestVariableList(state: ShellState): Array[String] = {  
+  def requestVariableList(state: ShellState): Array[String] = {
     val collMap = getCollectionNodeMap
     state.getProp("collections")  match {
       case Some( collections ) => {
         collections.child.flatMap( cidnode => {
           attrOpt(cidnode,"id") match {
             case Some( cid ) => collMap.get( cid ) match {
-              case Some( cnode ) => Some( cnode.text.split(';').filter(!_.isEmpty).map( varStr => { val vs = varStr.split(':'); <variable id={vs.head} desc={vs.last} col={cid}/>.toString } )  )
+              case Some( cnode ) => Some( cnode.text.split(';').filter(!_.isEmpty).map( varStr => { val vs = varStr.split(':'); <variable id={vs.head} desc={vs.last} collection={cid}/>.toString } )  )
               case None => None
               }
             case None => None
