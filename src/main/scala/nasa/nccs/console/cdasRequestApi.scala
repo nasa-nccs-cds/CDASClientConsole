@@ -76,7 +76,7 @@ class CDASClientRequestManager( val server: String ="localhost", val port: Int =
 
   private def getCapabilities(identifier: String): String = """http://%s:%s/wps?request=getCapabilities&service=cds2&identifier=%s""".format( server, port, identifier )
 
-  private def describeProcess(processId: String): String = """http://%s:%s/wps?request=Execute&service=cds2&identifier=%s""".format(server, port, processId)
+  private def describeProcess(processId: String): String = """http://%s:%s/wps?request=describeProcess&service=cds2&identifier=%s""".format(server, port, processId)
 
   private def toDomainWps(domains: Domain*): Option[String] = if(domains.isEmpty) None else Some("""domain=[%s]""".format(domains.map(_.toWps).mkString(",")))
 

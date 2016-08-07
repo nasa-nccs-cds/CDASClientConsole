@@ -29,6 +29,16 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     }
     Map( collections.map( col => (col.id -> col ) ):_* )
   }
+
+  def getCollectionNodeMap: Map[String,xml.Node] = {
+    updateCollections
+    val cNodes: Seq[xml.Node] = _collections match {
+      case None => Seq.empty[xml.Node]
+      case Some(collNodes) => collNodes.child
+    }
+    Map( cNodes.map( cNode => ( attr(cNode,"id") -> cNode ) ):_* )
+  }
+
   def attr( node: xml.Node, att_name: String ): String = { node.attribute(att_name) match { case None => ""; case Some(x) => x.toString }}
   def attrOpt( node: xml.Node, att_name: String ): Option[String] = node.attribute(att_name).map( _.toString )
 
@@ -45,13 +55,14 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     case None => None
   }
 
-  def aggregateDataset( inputs: Vector[String], state: ShellState ): ShellState = {
+  def aggregateDataset( multiple: Boolean )( inputs: Vector[String], state: ShellState ): ShellState = {
     println( " aggregateDataset, inputs = " + inputs.mkString(", ") )
     val id = inputs(0)
     val path = inputs(1)
     val uri: String = "collection:/" + id
     val collections = List(new Collection(id,uri,path))
-    val results = localClientRequestManager.submitRequest( true, "util.agg", List.empty[Domain], collections, List.empty[Operation] )
+    val ident = if( multiple ) "util.magg" else  "util.agg"
+    val results = localClientRequestManager.submitRequest( true, ident, List.empty[Domain], collections, List.empty[Operation] )
     _collections = None
     state :+ Map( "results" -> results )
   }
@@ -165,7 +176,15 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     new MultiStepCommandHandler("[ag]gregate", "Create collection by defining aggregated dataset",
       Vector( "Enter collection id >>", "Enter path to dataset directory >>" ),
       Vector( validCollectionId(false) _, validDirecory ),
-      aggregateDataset
+      aggregateDataset(false)
+    )
+  }
+
+  def aggregateMultipleDatasetsCommand: MultiStepCommandHandler = {
+    new MultiStepCommandHandler("[mag]gregate", "Create collections by defining multiple aggregated datasets",
+      Vector( "Enter base collection id >>", "Enter path to directory containing datasets>>" ),
+      Vector( validCollectionId(false) _, validDirecory ),
+      aggregateDataset(true)
     )
   }
 
@@ -209,11 +228,15 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   }
 
   def requestVariableList(state: ShellState): Array[String] = {
+    val collMap = getCollectionNodeMap
     state.getProp("collections")  match {
       case Some( collections ) => {
-        collections.child.flatMap( cnode => {
-          cnode.attribute("id") match {
-            case Some( coll_id ) => Some( cnode.text.split(';').filter(!_.isEmpty).map( varStr => { val vs = varStr.split(':'); <variable id={vs(0)} dims={vs(1)} desc={vs(2)} col={coll_id}/>.toString } )  )
+        collections.child.flatMap( cidnode => {
+          attrOpt(cidnode,"id") match {
+            case Some( cid ) => collMap.get( cid ) match {
+              case Some( coll_id ) => Some( cnode.text.split(';').filter(!_.isEmpty).map( varStr => { val vs = varStr.split(':'); <variable id={vs(0)} dims={vs(1)} desc={vs(2)} col={coll_id}/>.toString } )  )
+              case None => None
+              }
             case None => None
         }} ).foldLeft(Array.empty[String])(_ ++ _) }
       case None => println( "++++ UNDEF Collections! "); Array.empty[String]
@@ -238,7 +261,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
 
   def requestCollectionsList(): Array[String] = getCollections match {
     case None => Array.empty[String]
-    case Some(response) => response.child.filterNot(_.label.startsWith("#")).map(cNode => cNode.toString.replace('\n',' ')).toArray
+    case Some(response) => response.child.filterNot(_.label.startsWith("#")).map( cNode => attr(cNode,"id") ).sortWith((n0,n1)=>(n0<n1)).toArray
   }
 
   def listCapabilities( capability: String ): Array[String] = {
@@ -251,9 +274,9 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   def requestResultList(): Array[String]  = listCapabilities("result")
   def requestJobList(): Array[String]  = listCapabilities("job")
 
-  def removeCollections( collectionXmls: Array[String] ) = {
+  def removeCollections( selectedCols: Array[String] ) = {
     val collectionMap = getCollectionMap
-    val cids = collectionXmls.map( collectionXml => attr( xml.XML.loadString(collectionXml), "id" ) )
+    val cids = selectedCols.map( selectedCol => extractAttribute(selectedCol,"id") )
     println( "Collection keys -> " + collectionMap.keys.mkString(",") )
     val cList = cids.flatMap( cid => collectionMap.get( cid ) ).toList
     println( "  ------> RemoveCollection( " + cids(0) + " ) -> " + cList.mkString(",") )
@@ -270,7 +293,17 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   }
 
   def removeFragment( fid: String ) = println( "Remove Fragment: " + fid)
-  def printCollectionMetadata( collectionNode: String  ): Unit = println( printer.format( requestMetadata( "collections", attr( xml.XML.loadString( collectionNode ), "id" ) ) ) )
+
+  def extractAttribute( input: String, attrId: String = "id" ): String = {
+    input.trim match {
+      case xmlStrVal if xmlStrVal.startsWith("<") => attr( xml.XML.loadString( xmlStrVal ), attrId )
+      case attrStrVal => attrStrVal
+    }
+  }
+
+  def printCollectionMetadata( collectionStr: String  ): Unit =
+    println( printer.format( requestMetadata( "collections", extractAttribute(collectionStr) ) ) )
+
   def printFragmentMetadata( fragDesc: String  ): Unit = println( fragDesc )
 
   def listCollectionsCommand: ListSelectionCommandHandler = {
@@ -283,7 +316,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   }
   def selectCollectionsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[sc]ollections", "Select collection(s)", (state) => requestCollectionsList,
-      ( collections, state ) => state :+ Map( "collections" -> <collections> { collections.map( collection => xml.XML.loadString(collection)) } </collections> )  )
+      ( collections, state ) => state :+ Map( "collections" -> <collections> { collections.map( collID => <collection id={collID}/> ) } </collections> )  )
   }
   def selectOperationsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[so]peration", "Select operation(s)", (state) => requestOperationsList,
@@ -346,6 +379,7 @@ object collectionsConsoleTest extends App {
   val cdasCollections = new CdasCollections( new CDASClientRequestManager( ) )
   val handlers = Array(
     cdasCollections.aggregateDatasetCommand,
+    cdasCollections.aggregateMultipleDatasetsCommand,
     cdasCollections.cacheFragmentCommand,
     cdasCollections.listCollectionsCommand,
     cdasCollections.deleteCollectionsCommand,
