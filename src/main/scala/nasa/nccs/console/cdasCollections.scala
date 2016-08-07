@@ -213,7 +213,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
       case Some( collections ) => {
         collections.child.flatMap( cnode => {
           cnode.attribute("id") match {
-            case Some( coll_id ) => Some( cnode.text.replace(',',' ').split("\\s+").filter(!_.isEmpty).map( id => <variable id={id} collection={coll_id}/>.toString ) )
+            case Some( coll_id ) => Some( cnode.text.split(';').filter(!_.isEmpty).map( varStr => { val vs = varStr.split(':'); <variable id={vs(0)} dims={vs(1)} desc={vs(2)} col={coll_id}/>.toString } )  )
             case None => None
         }} ).foldLeft(Array.empty[String])(_ ++ _) }
       case None => println( "++++ UNDEF Collections! "); Array.empty[String]
