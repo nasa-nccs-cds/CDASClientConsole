@@ -272,7 +272,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
   def requestOperationsList( state: ShellState ): Array[String] = listCapabilities("operation")
   def requestFragmentList( state: ShellState ): Array[String]  = listCapabilities("fragment")
   def requestResultList( state: ShellState ): Array[String]  = listCapabilities("result")
-  def requestJobList( state: ShellState ): Array[String]  = listCapabilities("job")
+  def requestJobList( state: ShellState ): Array[String]  = listCapabilities("job")  
 
   def removeCollections( selectedCols: Array[String] ) = {
     val collectionMap = getCollectionMap
