@@ -4,7 +4,7 @@ import java.nio.file.{Files, Paths}
 import nasa.nccs.cdapi.kernels.ExecutionResults
 import nasa.nccs.utilities.Loggable
 
-class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggable {
+class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Loggable {
   val printer = new xml.PrettyPrinter(200, 3)
   private var _collections: Option[xml.Node] = requestCollections
 
@@ -215,7 +215,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
 
   def exeOperationCommand: SequentialCommandHandler = {
     new SequentialCommandHandler("[ex]ecute", "Execute analytics operation",
-      Vector( selectCollectionsCommand, cdasDomainManager.selectDomainCommand, selectVariablesCommand, selectOperationsCommand, selectAxesCommand  ),
+      Vector( selectFragmentsCommand, cdasDomainManager.selectDomainCommand, selectOperationsCommand, selectAxesCommand  ),
       exeOperation
     )
   }
@@ -259,7 +259,7 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     }
   }
 
-  def requestCollectionsList(): Array[String] = getCollections match {
+  def requestCollectionsList(state: ShellState): Array[String] = getCollections match {
     case None => Array.empty[String]
     case Some(response) => response.child.filterNot(_.label.startsWith("#")).map( cNode => attr(cNode,"id") ).sortWith((n0,n1)=>(n0<n1)).toArray
   }
@@ -269,10 +269,10 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
     if( response.label == "error" ) { logger.error( response.text ); Array.empty[String] }
     else response.child.filterNot(_.label.startsWith("#")).map( node => node.toString.replace('\n',' ') ).toArray
   }
-  def requestOperationsList(): Array[String] = listCapabilities("operation")
-  def requestFragmentList(): Array[String]  = listCapabilities("fragment")
-  def requestResultList(): Array[String]  = listCapabilities("result")
-  def requestJobList(): Array[String]  = listCapabilities("job")
+  def requestOperationsList( state: ShellState ): Array[String] = listCapabilities("operation")
+  def requestFragmentList( state: ShellState ): Array[String]  = listCapabilities("fragment")
+  def requestResultList( state: ShellState ): Array[String]  = listCapabilities("result")
+  def requestJobList( state: ShellState ): Array[String]  = listCapabilities("job")
 
   def removeCollections( selectedCols: Array[String] ) = {
     val collectionMap = getCollectionMap
@@ -307,19 +307,19 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   def printFragmentMetadata( fragDesc: String  ): Unit = println( fragDesc )
 
   def listCollectionsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[lc]ollections", "List collection metadata", (state) => requestCollectionsList,
+    new ListSelectionCommandHandler("[lc]ollections", "List collection metadata", requestCollectionsList,
       (collections,state) => { collections.foreach( collection => printCollectionMetadata(collection)); state } )
   }
   def deleteCollectionsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[dc]ollections", "Delete specified collections", (state) => requestCollectionsList,
+    new ListSelectionCommandHandler("[dc]ollections", "Delete specified collections", requestCollectionsList,
       (collections,state) => { removeCollections( collections ); state } )
   }
   def selectCollectionsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[sc]ollections", "Select collection(s)", (state) => requestCollectionsList,
+    new ListSelectionCommandHandler("[sc]ollections", "Select collection(s)", requestCollectionsList,
       ( collections, state ) => state :+ Map( "collections" -> <collections> { collections.map( collID => <collection id={collID}/> ) } </collections> )  )
   }
   def selectOperationsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[so]peration", "Select operation(s)", (state) => requestOperationsList,
+    new ListSelectionCommandHandler("[so]peration", "Select operation(s)", requestOperationsList,
       ( operations, state ) => state :+ Map( "operations" -> <operations> { operations.map( operation => xml.XML.loadString(operation)) } </operations> )  )
   }
   def selectAxesCommand: ListSelectionCommandHandler = {
@@ -327,41 +327,44 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
       ( axes, state ) => state :+ Map( "axes" -> <axes> { axes.mkString(",") } </axes> )  )
   }
   def listOperationsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[lo]peration", "Select operation(s)", (state) => requestOperationsList,
+    new ListSelectionCommandHandler("[lo]peration", "Select operation(s)", requestOperationsList,
       (operations, state) => state :+ Map( "operations" -> <operations> { operations.map( operation => xml.XML.loadString(operation)) } </operations> )  )
   }
   def selectVariablesCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[sv]ariables", "Select variables from selected collection(s)", requestVariableList,
       (cids, state) => { state :+ Map( "variables" -> <variables> { cids.map( cid => xml.XML.loadString(cid)) } </variables> ) } )
   }
-
+  def selectFragmentsCommand: ListSelectionCommandHandler = {
+    new ListSelectionCommandHandler("[sf]ragments", "Select data fragments from cache", requestFragmentList,
+      (frags, state) => { state :+ Map( "fragments" -> <fragments> { frags.map( frag => xml.XML.loadString(frag)) } </fragments> ) } )
+  }
   def listFragmentsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[lf]ragments", "List cached data fragments",
-      (state) =>requestFragmentList, (fragEntries, state) => { fragEntries.foreach( fragDesc => printFragmentMetadata( fragDesc ) ); state } )
+      requestFragmentList, (fragEntries, state) => { fragEntries.foreach( fragDesc => printFragmentMetadata( fragDesc ) ); state } )
   }
   def deleteFragmentsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[df]ragments", "Delete specified data fragments from the cache",
-      (state) => requestFragmentList, (fragments,state) => { removeFragments( fragments ); ; state } )
+      requestFragmentList, (fragments,state) => { removeFragments( fragments ); ; state } )
   }
   def listResultsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[lr]esults", "List execution results", (state) => requestResultList,
+    new ListSelectionCommandHandler("[lr]esults", "List execution results", requestResultList,
       (resultIds, state) => printStateProp("result")(getResult(setResultAccessState("xml", resultIds, state))))
   }
   def listJobsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[lj]obs", "List executing task requests",
-      (state) =>requestJobList, (jobIds, state) => { jobIds.foreach( jobId => println( jobId )); state } )
+      requestJobList, (jobIds, state) => { jobIds.foreach( jobId => println( jobId )); state } )
   }
   def selectResultCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[sr]esult", "Select execution result",
-      (state) =>requestResultList, (resultIds, state) => state :+ Map( "result" -> <results> { resultIds.map( elemStr => xml.XML.loadString(elemStr) ) } </results> ) )
+      requestResultList, (resultIds, state) => state :+ Map( "result" -> <results> { resultIds.map( elemStr => xml.XML.loadString(elemStr) ) } </results> ) )
   }
   def getResultFileCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[gr]esult", "Get result as NetCDF file", (state) =>requestResultList,
+    new ListSelectionCommandHandler("[gr]esult", "Get result as NetCDF file", requestResultList,
       (resultIds, state) =>  printStateProp("result")( getResult( setResultAccessState("netcdf",resultIds, state)) ) )
   }
   def deleteResultsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[dr]esults", "Delete specified execution results",
-      (state) => requestResultList, (resultIds, state) => { removeResults( resultIds ); state } )
+      requestResultList, (resultIds, state) => { removeResults( resultIds ); state } )
   }
   def setResultAccessState( rtype: String, resultIds: Array[String], state: ShellState ): ShellState  =
     state :+ Map( "access" -> <access> { rtype } </access>, "result" -> <results> { resultIds.map( elemStr => xml.XML.loadString(elemStr) ) } </results> )
@@ -375,24 +378,24 @@ class CdasCollections( requestManager: CDASClientRequestManager ) extends Loggab
   }
 }
 
-object collectionsConsoleTest extends App {
-  val cdasCollections = new CdasCollections( new CDASClientRequestManager( ) )
+object cdasShellManager extends App {
+  val cdasControl = new CdasControlCenter( new CDASClientRequestManager( ) )
   val handlers = Array(
-    cdasCollections.aggregateDatasetCommand,
-    cdasCollections.aggregateMultipleDatasetsCommand,
-    cdasCollections.cacheFragmentCommand,
-    cdasCollections.listCollectionsCommand,
-    cdasCollections.deleteCollectionsCommand,
-    cdasCollections.listFragmentsCommand,
-    cdasCollections.deleteFragmentsCommand,
-    cdasCollections.listOperationsCommand,
-    cdasCollections.listResultsCommand,
-    cdasCollections.listJobsCommand,
-    cdasCollections.deleteResultsCommand,
-    cdasCollections.getResultFileCommand,
+    cdasControl.aggregateDatasetCommand,
+    cdasControl.aggregateMultipleDatasetsCommand,
+    cdasControl.cacheFragmentCommand,
+    cdasControl.listCollectionsCommand,
+    cdasControl.deleteCollectionsCommand,
+    cdasControl.listFragmentsCommand,
+    cdasControl.deleteFragmentsCommand,
+    cdasControl.listOperationsCommand,
+    cdasControl.listResultsCommand,
+    cdasControl.listJobsCommand,
+    cdasControl.deleteResultsCommand,
+    cdasControl.getResultFileCommand,
     cdasDomainManager.defineDomainHandler,
-    cdasCollections.exeOperationCommand,
-    cdasCollections.listVariablesCommand,
+    cdasControl.exeOperationCommand,
+    cdasControl.listVariablesCommand,
     new HistoryHandler( "[hi]story",  (value: String) => println( s"History Selection: $value" )  ),
     new HelpHandler( "[h]elp", "Command Help" )
   )
