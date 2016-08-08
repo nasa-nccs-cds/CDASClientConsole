@@ -261,7 +261,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
 
   def requestCollectionsList(state: ShellState): Array[String] = getCollections match {
     case None => Array.empty[String]
-    case Some(response) => response.child.filterNot(_.label.startsWith("#")).map( cNode => attr(cNode,"id") ).sortWith((n0,n1)=>(n0<n1)).toArray
+    case Some(response) => response.child.filterNot(_.label.startsWith("#")).map( cNode => attr(cNode,"id") + ": " + attr(cNode,"title") ).sortWith((n0,n1)=>(n0<n1)).toArray
   }
 
   def listCapabilities( capability: String ): Array[String] = {
@@ -272,11 +272,11 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
   def requestOperationsList( state: ShellState ): Array[String] = listCapabilities("operation")
   def requestFragmentList( state: ShellState ): Array[String]  = listCapabilities("fragment")
   def requestResultList( state: ShellState ): Array[String]  = listCapabilities("result")
-  def requestJobList( state: ShellState ): Array[String]  = listCapabilities("job")  
+  def requestJobList( state: ShellState ): Array[String]  = listCapabilities("job")
 
   def removeCollections( selectedCols: Array[String] ) = {
     val collectionMap = getCollectionMap
-    val cids = selectedCols.map( selectedCol => extractAttribute(selectedCol,"id") )
+    val cids = selectedCols.map( colId => colId.split(":").head )
     println( "Collection keys -> " + collectionMap.keys.mkString(",") )
     val cList = cids.flatMap( cid => collectionMap.get( cid ) ).toList
     println( "  ------> RemoveCollection( " + cids(0) + " ) -> " + cList.mkString(",") )
@@ -308,7 +308,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
 
   def listCollectionsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[lc]ollections", "List collection metadata", requestCollectionsList,
-      (collections,state) => { collections.foreach( collection => printCollectionMetadata(collection)); state } )
+      (collections,state) => { collections.foreach( collID => printCollectionMetadata(collID.split(":").head)); state } )
   }
   def deleteCollectionsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[dc]ollections", "Delete specified collections", requestCollectionsList,
@@ -316,7 +316,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
   }
   def selectCollectionsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[sc]ollections", "Select collection(s)", requestCollectionsList,
-      ( collections, state ) => state :+ Map( "collections" -> <collections> { collections.map( collID => <collection id={collID}/> ) } </collections> )  )
+      ( collections, state ) => state :+ Map( "collections" -> <collections> { collections.map( collID => <collection id={collID.split(":").head}/> ) } </collections> )  )
   }
   def selectOperationsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[so]peration", "Select operation(s)", requestOperationsList,
