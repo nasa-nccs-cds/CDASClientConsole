@@ -10,14 +10,14 @@ object cdasDomainManager {
 
   private val domainMap = new ConcurrentLinkedHashMap.Builder[String, Domain ].initialCapacity(100).maximumWeightedCapacity(10000).build()
   domainMap.put( "d0", new Domain( "d0" ) )
-  domainMap.put( "d1", new Domain( "d1", List( new Axis( "lev", 0, 0, "indices" ) ) ) )
+  domainMap.put( "d1", new Domain( "d1", Map( "lev" -> new Axis( "lev", 0, 0, "indices" ) ) ) )
   def getDomain(domId: String ): Option[Domain] = Option(domainMap.get(domId))
   def putDomain(domId: String, domain: Domain ) = domainMap.put(domId, domain)
 
   def createDomain( inputs: Vector[String] ) = {
     val domainId = "d" + domainMap.size
     val domainAxes = inputs zip List( "lat", "lon", "lev", "time" ) map { case ( input: String, id ) => createDomainAxis( id, input ) }
-    val domain = new Domain( domainId, domainAxes.flatten.toList )
+    val domain = new Domain( domainId, Map( domainAxes.flatten.map( axis => (axis.id -> axis ) ): _* ) )
     putDomain( domainId, domain )
     println( "Created Domain %s: %s".format( domainId, domain.toString ) )
   }
@@ -67,8 +67,8 @@ object cdasDomainManager {
   def defineDomainHandler: MultiStepCommandHandler = new MultiStepCommandHandler( "[d]omain", "Define new domain", Vector("Lon","Lat","Level","Time").map(_+" bounds: <[i]ndex/[v]alue>, <bound0>, (<bound1>) >> "),
         Vector("lat","lon","lev","time").map(domainAxisValidator(_) _ ), (vals,state) => { createDomain( vals ); state } )
 
-  def selectDomainCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[sd]omain", "Select domain(s)", getDomainSelectionList, ( cids:Array[String], state ) => { state :+ Map( "domains" -> <array>{cids.map( cid => cid.split(':')(0).trim ) }</array> ) } )
+  def selectDomainCommand( prompt: String = "Select domain(s)" ): ListSelectionCommandHandler = {
+    new ListSelectionCommandHandler("[sd]omain", prompt, getDomainSelectionList, ( cids:Array[String], state ) => { state :+ Map( "domains" -> <array>{cids.map( cid => cid.split(':')(0).trim ) }</array> ) } )
   }
 
   def validFloat( input: String ): Boolean = try { input.toFloat; true } catch { case ex: Throwable => false }
@@ -78,79 +78,34 @@ object cdasDomainManager {
   def getNumber( id: String, vtype: String, value: String ): GenericNumber = GenericNumber( if ( vtype.equals("indices") ) value.toInt else if(id.startsWith("tim")) value else value.toFloat)
 }
 
-/*
-object CommandExecutables {
-  private val domainMap = new ConcurrentLinkedHashMap.Builder[String, Map[String,String]].initialCapacity(100).maximumWeightedCapacity(10000).build()
-  private var currentDomain: String = "d0"
-  domainMap.put( currentDomain, Map.empty[String,String] )
+//final class DomainSubsetCommand( name: String, val baseDomain: Domain, val axisIndex: Int = 0, val errMsg: String = "" ) extends CommandHandler(name,"Subsets an existing domain") {
+//  val axes = Vector("lat","lon","lev","time")
+//  lazy val axisId = axes.get(axisIndex)
+//  lazy val domAxis: Option[Axis] = baseDomain.getAxis( axisId )
+//
+//  lazy val handler: CommandHandler = domAxis match {
+//    case None => new CommandHandler()
+//    case Some(axis) => axis.system match {
+//      case sysVal if(sysVal.startsWith("ind")) => new CommandHandler(axis)
+//      case sysVal if(sysVal.startsWith("val")) => new CommandHandler(axis)
+//    }
+//  }
+//
+//  def process(state: ShellState): ShellState = {
+//    handlers.head.validate(state.history.last, state) match {
+//      case None =>
+//        val lastCommand = ( handlers.length == 1 )
+//        val updatedState = if(!lastCommand) { state.updateHandler(new SequentialCommandHandler(name, description, handlers.tail, executor)) } else state
+//        val processedState = updatedState.delegate(handlers.head)
+//        if( lastCommand ) { executor(processedState).popHandler() } else { processedState }
+//      case Some(errMsg) => state.updateHandler( new SequentialCommandHandler(name, description, handlers, executor, errMsg) )
+//
+//    }
+//  }
+//  def getPrompt( state: ShellState ) = {
+//
+//  }
+//  override def toString = s"{$id:%s}".format( if(handlers.isEmpty) "" else handlers.head.id )
+//}
 
-  def getDomain( domId: String = currentDomain ): Option[Map[String,String]] = Option(domainMap.get(domId))
-  def putDomain( domId: String, domain: Map[String,String] ) = domainMap.put( domId, domain )
 
-  private val values: List[CommandExecutable] = List(
-
-    new CommandExecutable("[t]est", "Test exe", "") {
-      def execute(command: String, callIndex: Int ): Boolean = {
-        println("---> Executing command: " + command + ", call index = " + callIndex );
-        false
-      }
-    },
-    new CommandExecutable("[he]lp", "Lists available commands", "") {
-      def execute(command: String, callIndex: Int ): Boolean = {
-        println( "------ Commands --------" )
-        for( cmdExe <- CommandExecutables.getCommandsAlpha ) {
-          println( "  --> %s %s: %s ".format( cmdExe.name, cmdExe.args, cmdExe.description) )
-        }
-        false
-      }
-    },
-    new CommandExecutable("[ca]che", "Cache variable from NetCDF dataset", "<collection_id> <variable> <domain> <dataset_path>") {
-      def execute(command: String, callIndex: Int ): Boolean = {
-        println( "------ Commands --------" )
-        for( cmdExe <- CommandExecutables.getCommandsAlpha ) {
-          println( "  --> %s %s: %s ".format( cmdExe.name, cmdExe.args, cmdExe.description) )
-        }
-        false
-      }
-    },
-    new CommandExecutable("[co]llections", "Collection Operations: [l]ist, [d]efine, [s]electCurrent", "<operation:(l/d/s)>") {
-      def execute(command: String, callIndex: Int ): Boolean = {
-        interactionHandler match {
-          case None =>
-            val cmdArgs = command.split(' ')
-            val operation = if (cmdArgs.length > 1) {
-              cmdArgs(1)
-            } else {
-              "list"
-            }.toLowerCase.head
-            operation match {
-              case 'l' =>
-                println("------ Collections --------")
-                for (collId <- Collections.idSet) Collections.findCollection(collId) match {
-                  case Some(collection) => println("  --> id: %s vars: (%s), url: %s, path: %s ".format(collId, collection.url, collection.vars.mkString(","), collection.path))
-                  case None => Unit
-                }
-                false
-              case 'd' =>
-                interactionHandler = Some( new CommandInterationHandler(
-                  List( "Collection id:", "Dataset url or file path:" ), ( responses: List[String] ) => Collections.addCollection( responses(0), responses(1) ) ) )
-                true
-              //              case 's' =>
-              //                interactionHandler = Some( new CommandInterationHandler(
-              //                  List( Collections.indexedCollectionList ), ( responses: List[String] ) => Collections.addCollection( responses(0), responses(1) ) ) )
-              //                true
-              case x =>
-                println("Unrecognized <operation> argument: " + operation)
-                false
-            }
-          case Some( handler ) =>
-            handler.process( command )
-        }
-      }
-    }
-  )
-  val getCommands: List[CommandExecutable] = values.sortWith(_.len > _.len)
-  val getCommandsAlpha: List[CommandExecutable] = values.sortWith( _.key < _.key )
-}
-
-*/

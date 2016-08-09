@@ -55,12 +55,14 @@ class Axis(val id: String, val start: GenericNumber, val end: GenericNumber, val
   }
 }
 
-class Domain( val id: String, val axes: List[Axis] = List.empty[Axis] )  extends WpsNode {
+class Domain( val id: String, val axisMap: Map[String,Axis] = Map.empty[String,Axis] )  extends WpsNode {
+  lazy val axes = axisMap.values.toList
   def toWps: String =
     if( axes.length == 0 ) """{"name":"%s"}""".format(id)
     else """{"name":"%s",%s}""".format( id, axes.map(_.toWps).mkString(",") )
 
   override def toString: String = toWps
+  def getAxis( id: String ): Option[Axis] = axisMap.get( id )
 }
 
 

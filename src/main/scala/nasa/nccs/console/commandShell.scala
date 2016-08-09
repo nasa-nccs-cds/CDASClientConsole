@@ -107,7 +107,34 @@ final class SequentialCommandHandler( name: String, description: String, val han
   override def toString = s"{$id:%s}".format( if(handlers.isEmpty) "" else handlers.head.id )
 }
 
-final class ListSelectionCommandHandler( name: String, description: String, val getChoices:(ShellState) => Array[String], val executor: (Array[String],ShellState) => ShellState, var errorState: Boolean = false) extends CommandHandler(name,description) {
+final class ConditionalCommandHandler( name: String, description: String, val stateKey: String, val handlers: Map[String,CommandHandler], val errMsg: String = ""  )
+  extends CommandHandler(name,description) {
+
+  def getHandler(state: ShellState): CommandHandler = {
+    state.getProp(stateKey) match {
+      case None => throw new Exception( "Improper state; Missing key: " + stateKey )
+      case Some( commandKey ) => handlers.find( matches(commandKey.text) _ ) match {
+        case None => throw new Exception( "Improper state; Missing handler for key: " + commandKey.text )
+        case Some( (key, handler) ) => handler
+      }
+    }
+  }
+
+  def matches( commandKey: String )( item: (String, CommandHandler) ): Boolean = item._1.toLowerCase.startsWith(commandKey.toLowerCase())
+
+  def process(state: ShellState): ShellState = {
+    val handler = getHandler(state)
+    handler.validate(state.history.last, state) match {
+      case None => state.delegate(handler)
+      case Some(errMsg) => state.updateHandler( new ConditionalCommandHandler(name, description, stateKey, handlers, errMsg) )
+    }
+  }
+  def getPrompt( state: ShellState ) = errMsg + getHandler(state).getPrompt( state )
+  override def toString = s"{$id:%s}".format( if(handlers.isEmpty) "" else handlers.values.map(_.id).mkString("-") )
+}
+
+final class ListSelectionCommandHandler( name: String, description: String, val getChoices:(ShellState) => Array[String],
+                                         val executor: (Array[String],ShellState) => ShellState, var errorState: Boolean = false) extends CommandHandler(name,description) {
   def getSelectionList(state: ShellState): String = getChoices(state).zipWithIndex.map { case (v, i) => s"\t $i: $v" } mkString ("\n")
 
   def process( state: ShellState): ShellState = {
@@ -141,31 +168,6 @@ class SelectionCommandHandler( name: String, description: String, val prompt: St
   override def help: String = { s"Commands: \n" + handlers.map( _.help ).mkString("\n") }
 }
 
-class EchoHandler(name: String, description: String, val prompt: String ) extends CommandHandler(name,description)  {
-  def process( state: ShellState ): ShellState = { println( "Executing: " + state.getTopCommand  ); state.popHandler() }
-  def getPrompt( state: ShellState ): String = prompt
-}
-
-final class ExecutionHandler(name: String, description: String, val prompt: String, val executor: (ShellState) => Option[String], val validator: (String) => Option[String] = (String)=>None ) extends CommandHandler(name,description)  {
-  def process( state: ShellState ): ShellState = executor( state  ) match {
-    case None => state.popHandler();
-    case Some( errorMsg ) =>
-      val new_prompt = s"Input error: $errorMsg, please try again: "
-      state.updateHandler( new ExecutionHandler(name, description, new_prompt, executor, validator ) )
-  }
-  def getPrompt( state: ShellState ): String = prompt
-  override def validate( command: String, state: ShellState ) = validator( command )
-}
-
-object EntryHandler {
-  def apply(name: String, prompt: String, validator: (String) => Option[String] = (String)=>None, description: String ="" ) = new EntryHandler( name, description, prompt, validator)
-}
-final class EntryHandler(name: String, description: String, val prompt: String, val validator: (String) => Option[String] = (String)=>None ) extends CommandHandler(name,description)  {
-  def process( state: ShellState ): ShellState = state.popHandler()
-  def getPrompt( state: ShellState ): String = prompt
-  override def validate( command: String, state: ShellState ) = validator( command )
-}
-
 class HelpHandler(name: String, description: String ) extends CommandHandler(name,description)  {
   def process( state: ShellState ): ShellState = { state.popHandler() }
   def getPrompt( state: ShellState ): String = state.handlerStack.head.help + "\n"
@@ -188,180 +190,3 @@ final class HistoryHandler( name: String, val executor: (String) => Unit, var er
     if (errorState) "   Invalid entry, please try again: " else s"Command History:\n$selectionList\n > Enter index to execute: "
   }
 }
-
-//object consoleTest extends App {
-//  val testHandlers = Array(
-//    new MultiStepCommandHandler( "[m]ultistep", "MultiStepCommandHandler", Vector("Enter one >> ", "Enter two >> ", "Enter three >> "), Vector( (x)=>None, (x)=>None, (x)=>None ), (vals,state) => { println( vals.mkString(",") ); state } ),
-//    new ListSelectionCommandHandler( "[s]election", "ListSelectionCommandHandler", (state) => Array("value1", "value2", "value3"),  (values: Array[String],state) => { println( "Selection: " + values.mkString(",") ); state }  ),
-//    new EchoHandler( "[e]cho", "EchoHandler", "Input Command >> " ),
-//    new HistoryHandler( "[hi]story",  (value: String) => println( s"History Selection: $value" )  ),
-//    new HelpHandler( "[h]elp", "Command Help" )
-//  )
-//  val shell = new CommandShell( new SelectionCommandHandler( "base", "BaseHandler", ">> ", testHandlers ) )
-//  shell.run
-//}
-//
-
-
-
-
-
-
-//  def process(command: String ): ExecuteResponse = {
-//    if( command.startsWith("t") ) {
-//      ExecuteResponse
-//    }
-//  }
-//}
-
-
-//class ListSelectionCommandHandler( choices: Array[String], executor: (String) => Unit ) extends CommandHandler {
-//
-//  def process(command: String): ExecuteResponse = {
-//
-//  }
-//
-
-
-
-
-
-
-
-/*
-
-
-object ArrowType {
-  sealed abstract class Value( val index: Byte ) { def compare( index1: Byte ): Boolean = { index == index1 } }
-  case object Up extends Value(0x41)
-  case object Down extends Value(0x42)
-  case object Right extends Value(0x43)
-  case object Left extends Value(0x44)
-  case object None extends Value(0)
-  val types = Seq( Up, Down, Right, Left )
-}
-
-class CommandInterationHandler( val prompts: Seq[String], val execute: ( List[String] ) => Unit ) {
-  val responses = new scala.collection.mutable.Queue[String]
-  def prompt( callIndex: Int ): String = prompts(callIndex)
-  def process( resp: String ): Boolean = {
-    responses += resp
-    if( responses.length == prompts.length ) {
-      execute( responses.toList )
-      false
-    } else { true }
-  }
-}
-
-abstract class CommandExecutable( val name: String, val description: String, val args: String  ) {
-  val key = name.split('[').last.split(']').head
-  val len = key.length
-  def matches( command: String ): Boolean = command.startsWith(key)
-  def execute( command: String, callIndex: Int  ): Boolean
-  var interactionHandler: Option[CommandInterationHandler] = None
-
-  def getTaskRequest: TaskRequest = {
-    val dataInputs = Map(
-      "domain" -> List(Map("name" -> "d0", "lev" -> Map("start" -> 0, "end" -> 0, "system" -> "indices"))),
-      "variable" -> List(Map("uri" -> "collection://merra_1/hourly/aggTest", "path" -> "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/DAILY/", "name" -> "t", "domain" -> "d0")))
-    TaskRequest("util.cache", dataInputs)
-  }
-}
-
-
-object commandProcessor {
-  private val cursor = ">> "
-  private val history = new mutable.MutableList[String]
-  lazy val commands: List[CommandExecutable] = CommandExecutables.getCommands
-  var activeCommandExe: Option[CommandExecutable] = None
-  var callIndex = 0
-
-  def getCursor(): String = cursor
-
-  def process(cmd: String) = activeCommandExe match {
-    case Some( cmdExe ) =>
-      execute( cmd, cmdExe )
-    case None =>
-      commands.find( _.matches(cmd) ) match {
-        case Some( cmdExe ) =>  execute( cmd, cmdExe )
-        case None =>            println( "Unrecognized command: " + cmd )
-      }
-  }
-
-  def execute( cmd: String, cmdExe: CommandExecutable ) = {
-    activeCommandExe = if( cmdExe.execute( cmd, callIndex ) ) { callIndex += 1; Some(cmdExe) } else { callIndex = 0; None }
-  }
-}
-
-object commandShell1 {
-  private val console = System.console()
-
-  def run = Iterator.continually( console.readLine( commandProcessor.getCursor ) ).takeWhile(!_.startsWith("quit")).foreach( command => commandProcessor.process( command ) )
-
-}
-
-object consoleTest extends App {
-  commandShell1.run
-}
-
-*/
-
-
-
-/*
-object commandProcessor {
-  private val cursor = ">> "
-  private val history = new mutable.MutableList[String]
-  private var historyIndex = 0
-  private var exeBuffer: String = ""
-
-  def process( command: String ) = {
-    getArrowType( command ) match {
-      case ArrowType.None =>
-        history += command
-        processCommand( command )
-      case ArrowType.Up =>
-        historyIndex += 1
-        val hcmd: String = history.get( history.length - historyIndex ) match {
-          case None =>
-            historyIndex = 0
-            history.get( historyIndex ).getOrElse("")
-          case Some( cmd ) => cmd
-        }
-        exeBuffer = hcmd
-      case ArrowType.Down =>
-        historyIndex -= 1
-        val hcmd: String = history.get( history.length - historyIndex ) match {
-          case None =>
-            historyIndex = history.length -1
-            history.get( historyIndex ).getOrElse("")
-          case Some( cmd ) => cmd
-        }
-        exeBuffer = hcmd
-      case ArrowType.Right => println("Right" )
-      case ArrowType.Left => println("Left" )
-    }
-  }
-
-  def processCommand( cmd: String ) = {
-    val command = if( cmd.isEmpty ) { exeBuffer } else cmd
-    exeBuffer = ""
-    println("Processing Command: " + command )
-    val tokens = command.split(' ')
-    if( tokens(0).startsWith("d") ) {
-      MetadataPrinter.display(1)
-    }
-  }
-
-  def getCursor(): String = { cursor + exeBuffer }
-
-  def getArrowType( command: String  ): ArrowType.Value = {
-    if( (command.length == 3) && (command(0).toInt == 0x1b) && (command(1).toInt == 0x5b) ) {
-      ArrowType.types.find( at => at.compare( command(2).toByte ) ) match {
-        case Some( value ) => value
-        case None => ArrowType.None
-      }
-    } else { ArrowType.None }
-  }
-
-}*/

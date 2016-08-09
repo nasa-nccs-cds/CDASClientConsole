@@ -207,7 +207,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
 
   def cacheFragmentCommand: SequentialCommandHandler = {
     new SequentialCommandHandler("[ca]che", "Cache variable[s] from a collection",
-      Vector( selectCollectionsCommand, cdasDomainManager.selectDomainCommand, selectVariablesCommand  ),
+      Vector( selectCollectionsCommand, cdasDomainManager.selectDomainCommand(), selectVariablesCommand  ),
       cacheVariables
     )
   }
@@ -215,7 +215,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
 
   def exeOperationCommand: SequentialCommandHandler = {
     new SequentialCommandHandler("[ex]ecute", "Execute analytics operation",
-      Vector( selectFragmentsCommand, cdasDomainManager.selectDomainCommand, selectOperationsCommand, selectAxesCommand  ),
+      Vector( selectFragmentsCommand, cdasDomainManager.selectDomainCommand("Select operation domain (will be intersected with fragment domain)"), selectOperationsCommand, selectAxesCommand  ),
       exeOperation
     )
   }
@@ -287,7 +287,8 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
   def removeFragments( fragXmls: Array[String] ) = {
     println( "Remove Fragments: " + fragXmls.mkString(",") )
     val frags = fragXmls.map( fragXml => xml.XML.loadString(fragXml) )
-    val variables: Array[WpsData] = for((frag, index) <- frags.zipWithIndex) yield new Variable("v"+index,attr(frag,"url"),attr(frag,"variable"),attr(frag,"origin")+"|"+attr(frag,"shape"))  //  def toFragKey =  "%s|%s|%s|%s".format( varname, collectionUrl, origin.mkString(","), shape.mkString(","))  TODO: Finish this :
+    val variables: Array[WpsData] = for((frag, index) <- frags.zipWithIndex) yield
+      new Variable( "v"+index, "collection:/"+attr(frag, "coll"),attr(frag,"variable"), attr(frag,"origin")+"|"+attr(frag,"shape") )  
     val results = localClientRequestManager.submitRequest( false, "util.dfrag", List.empty[Domain], variables.toList, List.empty[Operation] )
     _collections = None
   }
@@ -396,7 +397,6 @@ object cdasShellManager extends App {
     cdasDomainManager.defineDomainHandler,
     cdasControl.exeOperationCommand,
     cdasControl.listVariablesCommand,
-    new HistoryHandler( "[hi]story",  (value: String) => println( s"History Selection: $value" )  ),
     new HelpHandler( "[h]elp", "Command Help" )
   )
   val shell = new CommandShell( new SelectionCommandHandler( "base", "BaseHandler", "cdas> ", handlers ) )
