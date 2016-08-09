@@ -234,7 +234,8 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
         collections.child.flatMap( cidnode => {
           attrOpt(cidnode,"id") match {
             case Some( cid ) => collMap.get( cid ) match {
-              case Some( cnode ) => Some( cnode.text.split(';').filter(!_.isEmpty).map( varStr => { val vs = varStr.split(':'); <variable id={vs(0)} dims={vs(1)} units={vs(3)} desc={vs(2)} collection={cid}/>.toString } )  )
+              case Some( cnode ) => Some( cnode.text.split(';').filter(!_.isEmpty).map( varStr =>
+                   { val vs = varStr.split(':'); <variable id={clean(vs(0))} dims={clean(vs(1))} units={clean(vs(3))} desc={clean(vs(2))} collection={clean(cid)}/>.toString } )  )
               case None => None
               }
             case None => None
@@ -242,6 +243,8 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
       case None => println( "++++ UNDEF Collections! "); Array.empty[String]
     }
   }
+
+  def clean( value: String ): String = value.replace("\n","")
 
   def xmlToString( node: xml.Node, indent: String=" " ): String =
     Array( indent + node.label +  node.attributes.mkString("(",",","): ") + node.text, node.child.filterNot(_.label.startsWith("#")).map( cnode => xmlToString(cnode,indent+"\t") ) ).mkString("\n")
@@ -288,7 +291,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
     println( "Remove Fragments: " + fragXmls.mkString(",") )
     val frags = fragXmls.map( fragXml => xml.XML.loadString(fragXml) )
     val variables: Array[WpsData] = for((frag, index) <- frags.zipWithIndex) yield
-      new Variable( "v"+index, "collection:/"+attr(frag, "coll"),attr(frag,"variable"), attr(frag,"origin")+"|"+attr(frag,"shape") )  
+      new Variable( "v"+index, "collection:/"+attr(frag, "coll"),attr(frag,"variable"), attr(frag,"origin")+"|"+attr(frag,"shape") )
     val results = localClientRequestManager.submitRequest( false, "util.dfrag", List.empty[Domain], variables.toList, List.empty[Operation] )
     _collections = None
   }
