@@ -14,6 +14,22 @@ trait WpsNode extends NodeProcessor {
 
 trait WpsData extends WpsNode {}
 
+object Fragment extends NodeProcessor {
+  def apply( varNode: xml.Node, uid: String, domain: String ): Fragment = {
+    val varname = attr( varNode, "variable" )
+    val origin = attr( varNode, "origin" )
+    val shape = attr( varNode, "shape" )
+    val coll = attr( varNode, "coll" )
+    new Fragment( uid, varname, origin, shape, coll, domain )
+  }
+}
+
+class Fragment( val uid: String, val varname: String, val origin: String, val shape: String, val coll: String, val domain: String ) extends WpsData {
+  def toWps: String = """{"uri":"%s","name":"%s:%s","domain":"%s"}""".format( "fragment:/"+key, varname, uid, domain )
+  def key: String = Array( varname, origin, shape, coll ).mkString("|")
+  override def toString: String = toWps
+}
+
 object Variable extends NodeProcessor {
   def apply( varNode: xml.Node, uid: String, domain: String ): Variable = {
     val id = attr( varNode, "id" )
@@ -86,11 +102,11 @@ class CDASClientRequestManager( val server: String ="localhost", val port: Int =
 
   private def toOperationWps(operations: Operation*): Option[String] = if(operations.isEmpty) None else Some("""operation=[%s]""".format(operations.map(_.toWps).mkString(",")))
 
-  private def getDatainputs(domains: List[Domain], variables: List[WpsData], operations: List[Operation]): String =
-    "datainputs=" + Array( toDomainWps(domains:_*), toVariableWps(variables:_*), toOperationWps(operations:_*) ).flatten.mkString("[",",","]")
+  private def getDatainputs(domains: List[Domain], fragments: List[WpsData], operations: List[Operation]): String =
+    "datainputs=" + Array( toDomainWps(domains:_*), toVariableWps(fragments:_*), toOperationWps(operations:_*) ).flatten.mkString("[",",","]")
 
-  def getRequest(async: Boolean, identifier: String, domains: List[Domain], variables: List[WpsData], operations: List[Operation]): String = {
-    Array( getBaseRequest(async), "identifier="+identifier, getDatainputs( domains, variables, operations) ).mkString("&").replaceAll("\\s+","")
+  def getRequest(async: Boolean, identifier: String, domains: List[Domain], fragments: List[WpsData], operations: List[Operation]): String = {
+    Array( getBaseRequest(async), "identifier="+identifier, getDatainputs( domains, fragments, operations) ).mkString("&").replaceAll("\\s+","")
   }
 
   def submitRequest( request: String ): xml.Elem = try {
@@ -102,8 +118,8 @@ class CDASClientRequestManager( val server: String ="localhost", val port: Int =
 
   def requestCapabilities(identifier: String): xml.Elem = submitRequest( getCapabilities(identifier) )
 
-  def submitRequest( async: Boolean, identifier: String, domains: List[Domain], variables: List[WpsData], operations: List[Operation] ): xml.Elem = {
-    val request = getRequest( async, identifier, domains, variables, operations )
+  def submitRequest( async: Boolean, identifier: String, domains: List[Domain], fragments: List[WpsData], operations: List[Operation] ): xml.Elem = {
+    val request = getRequest( async, identifier, domains, fragments, operations )
     println( "Generated Request: " + request )
     scala.xml.XML.loadString(scala.io.Source.fromURL(request).mkString)
   }

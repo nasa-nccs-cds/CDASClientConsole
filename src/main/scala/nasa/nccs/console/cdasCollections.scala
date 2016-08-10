@@ -126,12 +126,12 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
     cdasDomainManager.getDomain( domid ) match {
       case None => state
       case Some( domain) =>
-        val variables: Seq[Variable] = state.props.get("variables") match {
-          case None => Seq.empty[Variable]
-          case Some( varNodes ) => for((varNode,index)<-varNodes.child.zipWithIndex; variable=Variable(varNode,"v"+index,domid); if(!variable.varname.isEmpty)) yield variable
+        val fragments: Seq[Fragment] = state.props.get("fragments") match {
+          case None => Seq.empty[Fragment]
+          case Some( fragNodes ) => for((fragNode,index)<-fragNodes.child.zipWithIndex; fragment=Fragment(fragNode,"v"+index,domid); if(!fragment.varname.isEmpty)) yield fragment
         }
-        println( " -->> variables = " + variables.map(_.toString).mkString(",") )
-        if( variables.isEmpty ) state
+        println( " -->> fragments = " + fragments.map(_.toString).mkString(",") )
+        if( fragments.isEmpty ) state
         else {
           val operations: Seq[(String,String)] = state.props.get("operations") match {
             case None => Seq.empty[(String,String)]
@@ -146,9 +146,9 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
             }
             val results = <results> {
               for( (opSpec, opIndex) <- operations.zipWithIndex; if( !opSpec._1.isEmpty && !opSpec._2.isEmpty )) yield {
-                val input_uids: Array[String] = variables.map(_.uid).toArray
+                val input_uids: Array[String] = fragments.map(_.uid).toArray
                 val op = new Operation(opSpec._1, opSpec._2, input_uids, Map("axes" -> axes), "r" + opIndex)
-                localClientRequestManager.submitRequest(true, "CDS.workflow", List(domain), variables.toList, List(op))
+                localClientRequestManager.submitRequest(true, "CDS.workflow", List(domain), fragments.toList, List(op))
               }
               } </results>
             println( results.toString() )
