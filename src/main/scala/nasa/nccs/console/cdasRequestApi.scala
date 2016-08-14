@@ -26,7 +26,7 @@ object Fragment extends NodeProcessor {
 
 class Fragment( val uid: String, val varname: String, val origin: String, val shape: String, val coll: String, val domain: String ) extends WpsData {
   def toWps: String = """{"uri":"%s","name":"%s:%s","domain":"%s"}""".format( "fragment:/"+key, varname, uid, domain )
-  def key: String = Array( varname, origin, shape, coll ).mkString("|")
+  def key: String = Array( varname, coll, origin, shape ).mkString("|")
   override def toString: String = toWps
 }
 
