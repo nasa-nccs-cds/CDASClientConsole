@@ -38,8 +38,10 @@ class ShellState( val handlerStack: Vector[CommandHandler], val history: Vector[
 //    println( " pop>>>> topHandler: %s".format( handlers.map(_.toString).mkString("{ ",", "," }") ) )
     new ShellState( handlers, history, props )
   }
-  def handleCommand( command: String ): ShellState =
-    processResults( handlerStack.last.process( new ShellState( handlerStack, history :+ command.trim, props ) ) )
+  def handleCommand( command: String ): ShellState = {
+    val passedProps = if( handlerStack.size > 1 ) props else Map.empty[String,xml.Node]
+    processResults(handlerStack.last.process(new ShellState(handlerStack, history :+ command.trim, passedProps)))
+  }
 
   def processResults(state: ShellState): ShellState = state.getProp("results") match {
     case Some(rnode) => println(rnode.toString); state :- "results"
