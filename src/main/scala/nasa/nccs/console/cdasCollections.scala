@@ -67,6 +67,13 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
     state :+ Map( "results" -> results )
   }
 
+  def clearCache( state: ShellState ): ShellState = {
+    val ident = "util.clearCache"
+    val results = localClientRequestManager.submitRequest( true, ident, List.empty[Domain], List.empty[Collection], List.empty[Operation] )
+    state :+ Map( "results" -> results )
+  }
+
+
   def cacheVariables(state: ShellState): ShellState = {
     println(" cacheVariables, prop vals = " + state.props.values.map(_.mkString(",")).mkString(" -- "))
     val domid = state.props.get("domains") match {
@@ -177,6 +184,12 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
       Vector( "Enter collection id >>", "Enter path to dataset directory >>" ),
       Vector( validCollectionId(false) _, validDirecory ),
       aggregateDataset(false)
+    )
+  }
+
+  def clearCacheCommand: SequentialCommandHandler = {
+    new SequentialCommandHandler("[clearc]ache", "Delete all data fragments in cache", Vector.empty[CommandHandler],
+      clearCache
     )
   }
 
