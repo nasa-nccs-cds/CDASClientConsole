@@ -394,7 +394,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
   }
 }
 
-object cdasShellManager extends App {
+object cdasShellManager extends App {   
   val cdasControl = new CdasControlCenter( new CDASClientRequestManager( ) )
   val handlers = Array(
     cdasControl.aggregateDatasetCommand,
