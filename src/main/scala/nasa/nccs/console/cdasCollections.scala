@@ -398,6 +398,7 @@ object cdasShellManager extends App {
   val cdasControl = new CdasControlCenter( new CDASClientRequestManager( ) )
   val handlers = Array(
     cdasControl.aggregateDatasetCommand,
+    cdasControl.clearCacheCommand,
     cdasControl.aggregateMultipleDatasetsCommand,
     cdasControl.cacheFragmentCommand,
     cdasControl.listCollectionsCommand,
