@@ -240,6 +240,9 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
     )
   }
 
+  def get_array_element( array: Array[String], index: Int, default: String="" ): String =
+    try{ clean(array(index)) } catch { case ex: ArrayIndexOutOfBoundsException => default }
+
   def requestVariableList(state: ShellState): Array[String] = {
     val collMap = getCollectionNodeMap
     state.getProp("collections")  match {
@@ -247,7 +250,10 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
         collections.child.flatMap( cidnode => {
           attrOpt(cidnode,"id") match {
             case Some( cid ) => collMap.get( cid ) match {
-              case Some( cnode ) => Some( cnode.text.split(';').filter(!_.isEmpty).map( varStr => { val vs = varStr.split(':'); <variable id={clean(vs(0))} dims={clean(vs(1))} units={clean(vs(3))} desc={clean(vs(2))} collection={clean(cid)}/>.toString } )  )
+              case Some( cnode ) => Some( cnode.text.split(';').filter(!_.isEmpty).map( varStr => {
+                  val vs = varStr.split(':');
+                  <variable id={get_array_element(vs,0)} dims={get_array_element(vs,1)} units={get_array_element(vs,3)} desc={get_array_element(vs,2)} collection={clean(cid)}/>.toString
+              } )  )
               case None => None
               }
             case None => None
@@ -394,7 +400,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
   }
 }
 
-object cdasShellManager extends App {   
+object cdasShellManager extends App {
   val cdasControl = new CdasControlCenter( new CDASClientRequestManager( ) )
   val handlers = Array(
     cdasControl.aggregateDatasetCommand,
