@@ -119,8 +119,8 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
     state.props.get("variables") match {
       case None => Unit
       case Some( varNodes ) =>
-        val varIdList = varNodes.child.filterNot( varNode => attr(varNode,"id").isEmpty ).map( varNode => attr(varNode,"id") + "!" + attr(varNode,"collection") ).mkString(",")
-        println( printer.format(  requestMetadata( "variables", varIdList ) ) )
+        val varIdList = varNodes.child.filterNot( varNode => attr(varNode,"id").isEmpty ).map( varNode => attr(varNode,"id").trim + "!" + attr(varNode,"collection").trim ).mkString(",")
+        println( printer.format(  requestMetadata( "variables", varIdList.trim ) ) )
     }
     state
   }

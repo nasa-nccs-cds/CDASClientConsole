@@ -1,4 +1,8 @@
 package nasa.nccs.console
+
+import java.io.PrintWriter
+import java.nio.file.Paths
+
 import nasa.nccs.esgf.process.TaskRequest
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 
@@ -89,6 +93,9 @@ class Operation( val pkg: String, val kernel: String, val input_uids: Array[Stri
 
 
 class CDASClientRequestManager( val server: String ="localhost", val port: Int =9000 ) {
+  val logger = new PrintWriter(new java.io.File( Paths.get( System.getProperty("user.home"), ".cdas", "cdshell.log" ).toString ))
+
+  def log( msg: String )= { logger.write( msg + "\n" ); logger.flush }
 
   private def getBaseRequest(async: Boolean): String = """http://%s:%s/wps?request=Execute&service=cds2&status=%s""".format(server, port, async.toString)
 
@@ -110,7 +117,10 @@ class CDASClientRequestManager( val server: String ="localhost", val port: Int =
   }
 
   def submitRequest( request: String ): xml.Elem = try {
-    scala.xml.XML.loadString(scala.io.Source.fromURL(request).mkString)
+    log( "Request: " + request )
+    val response = scala.io.Source.fromURL(request).mkString
+    log( "Response: " + response )
+    scala.xml.XML.loadString(response)
   } catch {
     case err: java.net.ConnectException => <error> { "Error connecting to analytics server: " + err.getMessage } </error>
     case error: Exception => <error> { "Error executing Request: " + error.getMessage } </error>
@@ -120,8 +130,10 @@ class CDASClientRequestManager( val server: String ="localhost", val port: Int =
 
   def submitRequest( async: Boolean, identifier: String, domains: List[Domain], fragments: List[WpsData], operations: List[Operation] ): xml.Elem = {
     val request = getRequest( async, identifier, domains, fragments, operations )
-    println( "Generated Request: " + request )
-    scala.xml.XML.loadString(scala.io.Source.fromURL(request).mkString)
+    log( "Request: " + request )
+    val response = scala.io.Source.fromURL(request).mkString
+    log( "Response: " + response )
+    scala.xml.XML.loadString(response)
   }
 
   def submitTimedRequest( request: String, connectTimeout:Int =5000, readTimeout:Int =5000 ): String = {
