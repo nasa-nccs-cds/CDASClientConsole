@@ -67,13 +67,6 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
     state :+ Map( "results" -> results )
   }
 
-  def clearCache( state: ShellState ): ShellState = {
-    val ident = "util.clearCache"
-    val results = localClientRequestManager.submitRequest( true, ident, List.empty[Domain], List.empty[Collection], List.empty[Operation] )
-    state :+ Map( "results" -> results )
-  }
-
-
   def cacheVariables(state: ShellState): ShellState = {
     println(" cacheVariables, prop vals = " + state.props.values.map(_.mkString(",")).mkString(" -- "))
     val domid = state.props.get("domains") match {
@@ -187,10 +180,17 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
     )
   }
 
-  def clearCacheCommand: SequentialCommandHandler = {
-    new SequentialCommandHandler("[clearc]ache", "Delete all data fragments in cache", Vector.empty[CommandHandler],
-      clearCache
-    )
+  def clearCache( state: ShellState ): ShellState = {
+    val ident = "util.clearCache"
+    val results = localClientRequestManager.submitRequest( true, ident, List.empty[Domain], List.empty[Collection], List.empty[Operation] )
+    state :+ Map( "results" -> results )
+  }
+
+  def clearCacheCommand: CommandHandler = {
+    new CommandHandler("[clearc]ache", "Delete all data fragments in cache") {
+      def process(state: ShellState): ShellState = { clearCache(state); state.popHandler() }
+      def getPrompt(state: ShellState): String = state.handlerStack.head.getPrompt(state)
+    }
   }
 
   def aggregateMultipleDatasetsCommand: MultiStepCommandHandler = {
