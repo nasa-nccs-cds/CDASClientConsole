@@ -105,7 +105,7 @@ final class SequentialCommandHandler( name: String, description: String, val han
 
     }
   }
-  def getPrompt( state: ShellState ) = errMsg + handlers.head.getPrompt( state )
+  def getPrompt( state: ShellState ) = errMsg + ( if(handlers.isEmpty) super.getPrompt(state) else handlers.head.getPrompt( state ) )
   override def toString = s"{$id:%s}".format( if(handlers.isEmpty) "" else handlers.head.id )
 }
 
