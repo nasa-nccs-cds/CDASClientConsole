@@ -187,9 +187,12 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
   }
 
   def clearCacheCommand: CommandHandler = {
-    new CommandHandler("[clearc]ache", "Delete all data fragments in cache") {
-      def process(state: ShellState): ShellState = { clearCache(state); state.popHandler() }
-      def getPrompt(state: ShellState): String = state.handlerStack.head.getPrompt(state)
+    new CommandHandler("[cc]ache", "Delete all data fragments in cache") {
+      def process(state: ShellState): ShellState = {
+        if( state.history.last.toLowerCase.startsWith("y") ) { clearCache(state); }
+        state.popHandler()
+      }
+      def getPrompt(state: ShellState): String = "Clear all cached data fragments? (y/n) >>"
     }
   }
 
