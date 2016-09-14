@@ -93,7 +93,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
           case None => state
           case Some( resultsElem ) =>
             val vars = resultsElem.child.filter(_.label=="result").map( rnode => attr (rnode, "id") ).map( rid => new Variable (rid, "", rid, "") ).toList
-            println ("Submmitting request for result, id = util.gres:" + access_method.text)
+            println ("Submitting request for result, id = util.gres:" + access_method.text)
             val result = localClientRequestManager.submitRequest (false, "util.gres:" + access_method.text, List.empty[Domain], vars, List.empty[Operation] )
             state :+ Map ("result" -> result)
         }
@@ -160,7 +160,8 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
 
   def validCollectionId(exists: Boolean)(id: String): Option[String] = getCollections match {
     case Some(collNode) =>
-      if ( collNode.child.find( node => ( attr(node,"id") == id ) ).isDefined ) {
+      if( id.isEmpty ) { None }
+      else if ( collNode.child.find( node => ( attr(node,"id") == id ) ).isDefined ) {
         if (exists) None else Some(s"collection $id exists")
       } else {
         if (exists) Some(s"collection $id does not exist") else None
