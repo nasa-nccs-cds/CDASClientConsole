@@ -1,7 +1,5 @@
 package nasa.nccs.console
 import java.nio.file.{Files, Paths}
-
-import nasa.nccs.cdapi.kernels.ExecutionResults
 import nasa.nccs.utilities.Loggable
 
 class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Loggable {
