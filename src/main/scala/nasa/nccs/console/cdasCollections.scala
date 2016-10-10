@@ -126,14 +126,14 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
       case Some( domain) =>
         val fragments: Seq[Fragment] = state.props.get("fragments") match {
           case None => Seq.empty[Fragment]
-          case Some( fragNodes ) => for((fragNode,index)<-fragNodes.child.zipWithIndex; fragment=Fragment(fragNode,"v"+index,domid); if(!fragment.varname.isEmpty)) yield fragment
+          case Some( fragNodes ) => for((fragNode,index)<-fragNodes.child.zipWithIndex; fragment=Fragment(fragNode,"v"+index,domid); if !fragment.varname.isEmpty) yield fragment
         }
         println( " -->> fragments = " + fragments.map(_.toString).mkString(",") )
         if( fragments.isEmpty ) state
         else {
           val operations: Seq[(String,String)] = state.props.get("operations") match {
             case None => Seq.empty[(String,String)]
-            case Some( opNodes ) => for((opNode,index)<-opNodes.child.zipWithIndex; operation=( attr(opNode,"module") -> attr(opNode,"name") ) ) yield operation
+            case Some( opNodes ) => for((opNode,index)<-opNodes.child.zipWithIndex; mod=attr(opNode,"module"); mname=attr(opNode,"name"); if !mod.isEmpty; if !mname.isEmpty; operation=(mod, mod + "." + mname) ) yield operation
           }
           println( " -->> operations = " + operations.toString )
           if( operations.isEmpty ) state
@@ -143,7 +143,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
               case Some(axesNode) => axesNode.text.replaceAll("[^xyztXYZT]", "")
             }
             val results = <results> {
-              for( (opSpec, opIndex) <- operations.zipWithIndex; if( !opSpec._1.isEmpty && !opSpec._2.isEmpty )) yield {
+              for( (opSpec, opIndex) <- operations.zipWithIndex ) yield {
                 val input_uids: Array[String] = fragments.map(_.uid).toArray
                 val op = new Operation(opSpec._1, opSpec._2, input_uids, Map("axes" -> axes), "r" + opIndex)
                 localClientRequestManager.submitRequest(true, "CDS.workflow", List(domain), fragments.toList, List(op))
@@ -290,8 +290,20 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
   def listCapabilities( capability: String ): Array[String] = {
     val response = requestManager.requestCapabilities(capability)
     if( response.label == "error" ) { logger.error( response.text ); Array.empty[String] }
-    else response.child.filterNot(_.label.startsWith("#")).map( node => node.toString.replace('\n',' ') ).toArray
+    else capability match  {
+      case cap: String if cap.toLowerCase.startsWith("op") =>
+//        val nodes: xml.NodeSeq = response \\ "Process" \ "Identifier"
+        val nodes: xml.NodeSeq = response \\ "kernel"
+        nodes.map( (node: xml.Node)  => node.toString.replace('\n',' ') ).toArray
+      case cap: String if cap.toLowerCase.startsWith("re") =>
+        logger.info( "  >>>>>-----> Response: " + response.mkString(",") )
+        val nodes: xml.NodeSeq = (response \\ "ProcessOutputs" \\ "Output" \\ "Reference").flatMap( _ \ "@href")
+        nodes.map( (node: xml.Node)  => node.text ).toArray
+      case _ =>
+        response.child.filterNot(_.label.startsWith("#")).map( node => node.toString.replace('\n',' ') ).toArray
+    }
   }
+
   def requestOperationsList( state: ShellState ): Array[String] = listCapabilities("operation")
   def requestFragmentList( state: ShellState ): Array[String]  = listCapabilities("fragment")
   def requestResultList( state: ShellState ): Array[String]  = listCapabilities("result")
@@ -351,7 +363,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
       ( axes, state ) => state :+ Map( "axes" -> <axes> { axes.mkString(",") } </axes> )  )
   }
   def listOperationsCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[lo]peration", "Select operation(s)", requestOperationsList,
+    new ListSelectionCommandHandler("[lo]peration", "List operation(s)", requestOperationsList,
       (operations, state) => state :+ Map( "operations" -> <operations> { operations.map( operation => xml.XML.loadString(operation)) } </operations> )  )
   }
   def selectVariablesCommand: ListSelectionCommandHandler = {

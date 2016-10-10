@@ -130,9 +130,9 @@ class CDASClientRequestManager( val server: String ="localhost", val port: Int =
 
   def submitRequest( async: Boolean, identifier: String, domains: List[Domain], fragments: List[WpsData], operations: List[Operation] ): xml.Elem = {
     val request = getRequest( async, identifier, domains, fragments, operations )
-    log( "Request: " + request )
+    log( "Submit Request: " + request )
     val response = scala.io.Source.fromURL(request).mkString
-    log( "Response: " + response )
+    log( "Received Response: " + response )
     scala.xml.XML.loadString(response)
   }
 
