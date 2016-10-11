@@ -90,8 +90,8 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
         state.props.get("result") match {
           case None => state
           case Some( resultsElem ) =>
-            val vars = resultsElem.child.filter(_.label=="result").map( rnode => attr (rnode, "id") ).map( rid => new Variable (rid, "", rid, "") ).toList
-            println ("Submitting request for result, id = util.gres:" + access_method.text)
+            val vars: List[Variable] = resultsElem.child.filter(_.label=="result").map( rnode => attr (rnode, "id") ).map( rid => new Variable (rid) ).toList
+            println ("Submitting request for result, id = util.gres:" + access_method.text + ", vars = " + vars.mkString(",") )
             val result = localClientRequestManager.submitRequest (false, "util.gres:" + access_method.text, List.empty[Domain], vars, List.empty[Operation] )
             state :+ Map ("result" -> result)
         }
@@ -297,8 +297,9 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
         nodes.map( (node: xml.Node)  => node.toString.replace('\n',' ') ).toArray
       case cap: String if cap.toLowerCase.startsWith("re") =>
         logger.info( "  >>>>>-----> Response: " + response.mkString(",") )
-        val nodes: xml.NodeSeq = (response \\ "ProcessOutputs" \\ "Output" \\ "Reference").flatMap( _ \ "@href")
-        nodes.map( (node: xml.Node)  => node.text ).toArray
+//        val nodes: xml.NodeSeq = (response \\ "ProcessOutputs" \\ "Output" \\ "Reference").flatMap( _ \ "@href")
+        val nodes: xml.NodeSeq = ( response \\ "result" )
+        nodes.map( (node: xml.Node)  => node.toString.replace('\n',' ') ).toArray
       case _ =>
         response.child.filterNot(_.label.startsWith("#")).map( node => node.toString.replace('\n',' ') ).toArray
     }
