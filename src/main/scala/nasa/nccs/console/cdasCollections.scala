@@ -86,16 +86,17 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
   def getResult( state: ShellState ): ShellState = {
     state.props.get("access") match {
       case None => state
-      case Some( access_method ) =>
+      case Some(access_method) =>
         state.props.get("result") match {
           case None => state
-          case Some( resultsElem ) =>
-            val vars: List[Variable] = resultsElem.child.filter(_.label=="result").map( rnode => attr (rnode, "id") ).map( rid => new Variable (rid) ).toList
-            println ("Submitting request for result, id = util.gres:" + access_method.text + ", vars = " + vars.mkString(",") )
-            val result = localClientRequestManager.submitRequest (false, "util.gres:" + access_method.text, List.empty[Domain], vars, List.empty[Operation] )
-            state :+ Map ("result" -> result)
+          case Some(resultsElem) =>
+            resultsElem.child.filter(_.label == "result").map(rnode => attr(rnode, "id")).map(rid => {
+              val result = localClientRequestManager.submitResultRequest( access_method.text, rid )
+              state :+ Map("result" -> result)
+            })
         }
     }
+    state
   }
 
   def removeResults( resultNodes: Array[String] ) = {

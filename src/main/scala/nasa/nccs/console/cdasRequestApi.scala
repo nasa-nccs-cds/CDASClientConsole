@@ -100,6 +100,10 @@ class CDASClientRequestManager( val server: String ="localhost", val port: Int =
 
   private def getBaseRequest(async: Boolean): String = """http://%s:%s/wps?request=Execute&service=cds2&status=%s""".format(server, port, async.toString)
 
+  private def getResultRequest(id: String): String = """http://%s:%s/wps/results?id=%s""".format( server, port, id )
+
+  private def getResultFileRequest(id: String): String = """http://%s:%s/wps/file?id=%s""".format( server, port, id )
+
   private def getCapabilities(identifier: String): String = """http://%s:%s/wps?request=getCapabilities&service=cds2&identifier=%s""".format( server, port, identifier )
 
   private def describeProcess(processId: String): String = """http://%s:%s/wps?request=describeProcess&service=cds2&identifier=%s""".format(server, port, processId)
@@ -131,6 +135,18 @@ class CDASClientRequestManager( val server: String ="localhost", val port: Int =
 
   def submitRequest( async: Boolean, identifier: String, domains: List[Domain], fragments: List[WpsData], operations: List[Operation] ): xml.Elem = {
     val request = getRequest( async, identifier, domains, fragments, operations )
+    log( "Submit Request: " + request )
+    val response = scala.io.Source.fromURL(request).mkString
+    log( "Received Response: " + response )
+    scala.xml.XML.loadString(response)
+  }
+
+  def submitResultRequest( mtype: String, rid: String ): xml.Elem = {
+    val request: String = mtype match {
+      case x if x.toLowerCase.contains("netcdf") => getResultFileRequest( rid )
+      case x if x.toLowerCase.contains("xml") => getResultRequest( rid )
+      case x => throw new Exception( "Unrecognized Mime Type: " + mtype )
+    }
     log( "Submit Request: " + request )
     val response = scala.io.Source.fromURL(request).mkString
     log( "Received Response: " + response )
