@@ -38,6 +38,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
   }
 
   def attr( node: xml.Node, att_name: String ): String = { node.attribute(att_name) match { case None => ""; case Some(x) => x.toString }}
+  def attr( nodeStr: String, att_name: String ): String = attr( scala.xml.XML.loadString(nodeStr), att_name )
   def attrOpt( node: xml.Node, att_name: String ): Option[String] = node.attribute(att_name).map( _.toString )
 
   def updateCollections( new_collections: Seq[xml.Node] ) = {
@@ -83,21 +84,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
     }
   }
 
-  def getResult( state: ShellState ): ShellState = {
-    state.props.get("access") match {
-      case None => state
-      case Some(access_method) =>
-        state.props.get("result") match {
-          case None => state
-          case Some(resultsElem) =>
-            resultsElem.child.filter(_.label == "result").map(rnode => attr(rnode, "id")).map(rid => {
-              val result = localClientRequestManager.submitResultRequest( access_method.text, rid )
-              state :+ Map("result" -> result)
-            })
-        }
-    }
-    state
-  }
+  def getResult( mtype: String, rid: String ): xml.Node = localClientRequestManager.submitResultRequest( mtype, rid )
 
   def removeResults( resultNodes: Array[String] ) = {
     val rids = resultNodes.map( elemStr => xml.XML.loadString(elemStr) ).filter(_.label=="result").map( n => attr(n,"id") )
@@ -204,22 +191,22 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
     )
   }
 
-  def getResultCommand: SequentialCommandHandler = {
-    new SequentialCommandHandler("[gr]esult", "Get result of analytics operation",
-      Vector( selectResultCommand,
-        new ListSelectionCommandHandler("[sa]ccess", "Select access method", (state) => Array( "Display as xml", "Save to NetCDF file"),
-          ( methods, state ) => state :+ Map( "access" ->
-            <access> {
-              methods.head match {
-                case x if x.startsWith("Disp") => "xml";
-                case x if x.startsWith("Save") => "netcdf";
-                case x => ""
-              }} </access>)
-        )
-      ),
-      getResult
-    )
-  }
+//  def getResultCommand: SequentialCommandHandler = {
+//    new SequentialCommandHandler("[gr]esult", "Get result of analytics operation",
+//      Vector( selectResultCommand,
+//        new ListSelectionCommandHandler("[sa]ccess", "Select access method", (state) => Array( "Display as xml", "Save to NetCDF file"),
+//          ( methods, state ) => state :+ Map( "access" ->
+//            <access> {
+//              methods.head match {
+//                case x if x.startsWith("Disp") => "xml";
+//                case x if x.startsWith("Save") => "netcdf";
+//                case x => ""
+//              }} </access>)
+//        )
+//      ),
+//      getResult
+//    )
+//  }
 
   def cacheFragmentCommand: SequentialCommandHandler = {
     new SequentialCommandHandler("[ca]che", "Cache variable[s] from a collection",
@@ -386,7 +373,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
   }
   def listResultsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[lr]esults", "List execution results", requestResultList,
-      (resultIds, state) => printStateProp("result")(getResult(setResultAccessState("xml", resultIds, state))))
+      (resultIds, state) => { resultIds map(  resultId =>  println( printer.format( getResult( "xml", attr( resultId, "id" ) ) ) ) ); state } )
   }
   def listJobsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[lj]obs", "List executing task requests",
@@ -397,8 +384,8 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
       requestResultList, (resultIds, state) => state :+ Map( "result" -> <results> { resultIds.map( elemStr => xml.XML.loadString(elemStr) ) } </results> ) )
   }
   def getResultFileCommand: ListSelectionCommandHandler = {
-    new ListSelectionCommandHandler("[gr]esult", "Get result as NetCDF file", requestResultList,
-      (resultIds, state) =>  printStateProp("result")( getResult( setResultAccessState("netcdf",resultIds, state)) ) )
+    new ListSelectionCommandHandler( "[gr]esult", "Get result as NetCDF file", requestResultList,
+      (resultIds, state) => { resultIds map(  resultId =>  println( printer.format( getResult( "netcdf", attr( resultId, "id" ) ) ) ) ); state } )
   }
   def deleteResultsCommand: ListSelectionCommandHandler = {
     new ListSelectionCommandHandler("[dr]esults", "Delete specified execution results",
