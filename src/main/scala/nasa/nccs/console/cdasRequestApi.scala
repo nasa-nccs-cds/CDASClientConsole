@@ -43,7 +43,8 @@ object Variable extends NodeProcessor {
 }
 
 class Variable( val uid: String, val uri: String="", val varname: String="", val domain_id: String="" ) extends WpsData {
-  def toWps: String = """{"uri":"%s","name":"%s:%s","domain":"%s"}""".format( uri, varname, uid, domain_id )
+  val fullName = List( varname, uid ).filterNot(_.isEmpty ).mkString(":")
+  def toWps: String = """{"uri":"%s","name":"%s","domain":"%s"}""".format( uri, fullName, domain_id )
   override def toString: String = toWps
 }
 
