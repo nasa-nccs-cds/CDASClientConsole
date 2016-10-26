@@ -92,7 +92,9 @@ class Operation( val pkg: String, val kernel: String, val input_uids: Array[Stri
 }
 
 
-class CDASClientRequestManager( val server: String ="localhost", val port: Int =9000 ) {
+class CDASClientRequestManager {
+  val server = getServerAddress
+  val port = getServerPort
   val logger = new PrintWriter(new java.io.File( Paths.get( System.getProperty("user.home"), ".cdas", "cdshell.log" ).toString ))
 
   def log( msg: String )= { logger.write( msg + "\n" ); logger.flush }
@@ -115,6 +117,9 @@ class CDASClientRequestManager( val server: String ="localhost", val port: Int =
   def getRequest(async: Boolean, identifier: String, domains: List[Domain], fragments: List[WpsData], operations: List[Operation]): String = {
     Array( getBaseRequest(async), "identifier="+identifier, getDatainputs( domains, fragments, operations) ).mkString("&").replaceAll("\\s+","")
   }
+
+  def getServerPort: String = sys.env.getOrElse("CDAS_SERVER_PORT",9000).toString
+  def getServerAddress: String = sys.env.getOrElse("CDAS_SERVER_ADDRESS","localhost").toString
 
   def submitRequest( request: String ): xml.Elem = try {
     log( "Request: " + request )

@@ -39,7 +39,7 @@ lazy val cdasProperties = settingKey[Properties]("The cdas properties map")
 lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
 
-cdasPropertiesFile :=  baseDirectory.value / "project" / "cdas.properties"
+cdasPropertiesFile :=  baseDirectory.value / "project" / "cdshell.properties"
 
 cdasProperties := {
   val prop = new Properties()
