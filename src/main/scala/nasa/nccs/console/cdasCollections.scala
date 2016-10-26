@@ -155,7 +155,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
     case None => None
   }
 
-  def validDirecory( dir: String ): Option[String] = { if( Files.exists(Paths.get(dir.trim))) None else Some( s"Directory '$dir' does not exist" ) }
+  def validDirecory( dir: String ): Option[String] = None // { if( Files.exists(Paths.get(dir.trim))) None else Some( s"Directory '$dir' does not exist" ) }
   def validDomainId( domId: String ): Option[String] = { None }
   def validVariables( vars: String ): Option[String] = { None }
 
