@@ -15,7 +15,7 @@ class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Logg
 //      collection.createNCML()
 //    }
 //    state
-//  }
+//     }
   def updateCollections = if( !_collections.isDefined ) { _collections = requestCollections }
   def getCollections: Option[xml.Node] = { updateCollections; _collections }
 
