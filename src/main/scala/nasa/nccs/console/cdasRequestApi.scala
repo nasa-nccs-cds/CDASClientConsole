@@ -105,7 +105,7 @@ class CDASClientRequestManager {
     __logger
   }
 
-  def log( msg: String )= getLogger match { case Some(logger) => logger.write( msg + "\n" ); logger.flush; case None => _ }
+  def log( msg: String ) = getLogger match { case Some(logger) => logger.write( msg + "\n" ); logger.flush; case None => None }
 
   private def getBaseRequest(async: Boolean): String = """http://%s:%s/wps?request=Execute&service=cds2&status=%s""".format(server, port, async.toString)
 
