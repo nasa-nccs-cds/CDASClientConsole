@@ -98,7 +98,7 @@ class CDASClientRequestManager {
   val server = getServerAddress
   val port = getServerPort
   val service = "cds2"
-  val isLocal = getIsLocal
+  val isLocal = serverLocality
   val serverConfiguration = Map[String,String]()
   val configMap = Map[String,String]()
   val webProcessManagerOpt: Option[ProcessManager] = if(isLocal) Some( new ProcessManager( serverConfiguration ) ) else None
@@ -111,9 +111,10 @@ class CDASClientRequestManager {
     __logger
   }
 
-  def getIsLocal = {
+  def serverLocality: Boolean = {
     val islocal = ( server.equals("localhost") && port.equals("9000") )
     log( "Running with server %s:%s, isLocal = %s".format( server, port, isLocal ) )
+    islocal
   }
 
   def log( msg: String ) = getLogger match { case Some(logger) => logger.write( msg + "\n" ); logger.flush; case None => None }
