@@ -5,6 +5,7 @@ import java.nio.file.Paths
 
 import nasa.nccs.esgf.process.TaskRequest
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
+import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
 
 trait NodeProcessor {
   def attr( node: xml.Node, att_name: String ): String = { node.attribute(att_name) match { case None => ""; case Some(x) => x.toString }}
@@ -96,6 +97,9 @@ class Operation( val pkg: String, val kernel: String, val input_uids: Array[Stri
 class CDASClientRequestManager {
   val server = getServerAddress
   val port = getServerPort
+  val serverConfiguration = Map[String,String]()
+  val configMap = Map[String,String]()
+  val webProcessManager = new ProcessManager( serverConfiguration )
   private var __logger: Option[PrintWriter] = None
   val logFilePath = Paths.get( System.getProperty("user.home"), ".cdas", "cdshell.log" )
   private def getNewLogger = new PrintWriter( logFilePath.toFile )
@@ -141,6 +145,15 @@ class CDASClientRequestManager {
   } catch {
     case err: java.net.ConnectException => <error> { "Error connecting to analytics server: " + err.getMessage } </error>
     case error: Exception => <error> { "Error executing Request: " + error.getMessage } </error>
+  }
+
+  def submitDirectRequest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {
+    val t0 = System.nanoTime()
+    val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString )
+    val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
+    val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
+    webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
+    response
   }
 
   def requestCapabilities(identifier: String): xml.Elem = submitRequest( getCapabilities(identifier) )
