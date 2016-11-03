@@ -113,7 +113,7 @@ class CDASClientRequestManager {
 
   def serverLocality: Boolean = {
     val islocal = ( server.equals("localhost") && port.equals("9000") )
-    log( "Running with server %s:%s, isLocal = %s".format( server, port, isLocal ) )
+    log( " ---> Running with server %s:%s, isLocal = %s".format( server, port, isLocal ) )
     islocal
   }
 
