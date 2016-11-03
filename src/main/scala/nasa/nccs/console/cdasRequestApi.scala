@@ -98,13 +98,13 @@ class CDASClientRequestManager {
   val server = getServerAddress
   val port = getServerPort
   val service = "cds2"
-  val isLocal = serverLocality
   val serverConfiguration = Map[String,String]()
   val configMap = Map[String,String]()
-  val webProcessManagerOpt: Option[ProcessManager] = if(isLocal) Some( new ProcessManager( serverConfiguration ) ) else None
   private var __logger: Option[PrintWriter] = None
   val logFilePath = Paths.get( System.getProperty("user.home"), ".cdas", "cdshell.log" )
   private def getNewLogger = new PrintWriter( logFilePath.toFile )
+  val isLocal = serverLocality
+  val webProcessManagerOpt: Option[ProcessManager] = if(isLocal) Some( new ProcessManager( serverConfiguration ) ) else None
 
   def getLogger: Option[PrintWriter] = {
     if( !logFilePath.toFile.exists || __logger == None ) { __logger  = Some( getNewLogger ) }
