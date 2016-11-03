@@ -97,9 +97,11 @@ class Operation( val pkg: String, val kernel: String, val input_uids: Array[Stri
 class CDASClientRequestManager {
   val server = getServerAddress
   val port = getServerPort
+  val service = "cds2"
+  val isLocal = ( server.equals("localhost") && port.equals("9000") )
   val serverConfiguration = Map[String,String]()
   val configMap = Map[String,String]()
-  val webProcessManager = new ProcessManager( serverConfiguration )
+  val webProcessManagerOpt: Option[ProcessManager] = if(isLocal) Some( new ProcessManager( serverConfiguration ) ) else None
   private var __logger: Option[PrintWriter] = None
   val logFilePath = Paths.get( System.getProperty("user.home"), ".cdas", "cdshell.log" )
   private def getNewLogger = new PrintWriter( logFilePath.toFile )
@@ -111,7 +113,7 @@ class CDASClientRequestManager {
 
   def log( msg: String ) = getLogger match { case Some(logger) => logger.write( msg + "\n" ); logger.flush; case None => None }
 
-  private def getBaseRequest(async: Boolean): String = """http://%s:%s/wps?request=Execute&service=cds2&status=%s""".format(server, port, async.toString)
+  private def getBaseRequest(async: Boolean): String = """http://%s:%s/wps?request=Execute&service=%s&status=%s""".format(server, port, service, async.toString)
 
   private def getResultRequest(id: String): String = """http://%s:%s/wps/results?id=%s""".format( server, port, id )
 
@@ -128,7 +130,7 @@ class CDASClientRequestManager {
   private def toOperationWps(operations: Operation*): Option[String] = if(operations.isEmpty) None else Some("""operation=[%s]""".format(operations.map(_.toWps).mkString(",")))
 
   private def getDatainputs(domains: List[Domain], fragments: List[WpsData], operations: List[Operation]): String =
-    "datainputs=" + Array( toDomainWps(domains:_*), toVariableWps(fragments:_*), toOperationWps(operations:_*) ).flatten.mkString("[",",","]")
+    Array( toDomainWps(domains:_*), toVariableWps(fragments:_*), toOperationWps(operations:_*) ).flatten.mkString("[",",","]")
 
   def getRequest(async: Boolean, identifier: String, domains: List[Domain], fragments: List[WpsData], operations: List[Operation]): String = {
     Array( getBaseRequest(async), "identifier="+identifier, getDatainputs( domains, fragments, operations) ).mkString("&").replaceAll("\\s+","")
@@ -137,33 +139,49 @@ class CDASClientRequestManager {
   def getServerPort: String = sys.env.getOrElse("CDAS_SERVER_PORT",9000).toString
   def getServerAddress: String = sys.env.getOrElse("CDAS_SERVER_ADDRESS","localhost").toString
 
-  def submitRequest( request: String ): xml.Elem = try {
-    log( "Request: " + request )
-    val response = scala.io.Source.fromURL(request).mkString
-    log( "Response: " + response )
-    scala.xml.XML.loadString(response)
+  def submitRequest( datainputs: String, async: Boolean, identifier: String = "CDSpark.workflow" ): xml.Elem = try {
+    webProcessManagerOpt match {
+      case Some(webProcessManager) =>
+        val t0 = System.nanoTime()
+        val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString )
+        val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
+        val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
+        webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
+        response
+      case None =>
+        val request = Array( getBaseRequest(async), "identifier="+identifier, "datainputs="+datainputs ).mkString("&").replaceAll("\\s+","")
+        log("Request: " + request)
+        val response = scala.io.Source.fromURL(request).mkString
+        log("Response: " + response)
+        scala.xml.XML.loadString(response)
+    }
   } catch {
     case err: java.net.ConnectException => <error> { "Error connecting to analytics server: " + err.getMessage } </error>
     case error: Exception => <error> { "Error executing Request: " + error.getMessage } </error>
   }
 
-  def submitDirectRequest( datainputs: String, async: Boolean = false, identifier: String = "CDSpark.workflow" ): xml.Elem = {
-    val t0 = System.nanoTime()
-    val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString )
-    val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
-    val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
-    webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
-    response
+  def requestCapabilities( identifier: String ): xml.Elem = try {
+    webProcessManagerOpt match {
+      case Some(webProcessManager) =>
+        val t0 = System.nanoTime()
+        val response: xml.Elem = webProcessManager.getCapabilities( service, identifier )
+        webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
+        response
+      case None =>
+        val request = getCapabilities(identifier)
+        log("Request: " + request)
+        val response = scala.io.Source.fromURL(request).mkString
+        log("Response: " + response)
+        scala.xml.XML.loadString(response)
+    }
+  } catch {
+    case err: java.net.ConnectException => <error> { "Error connecting to analytics server: " + err.getMessage } </error>
+    case error: Exception => <error> { "Error executing Request: " + error.getMessage } </error>
   }
 
-  def requestCapabilities(identifier: String): xml.Elem = submitRequest( getCapabilities(identifier) )
-
   def submitRequest( async: Boolean, identifier: String, domains: List[Domain], fragments: List[WpsData], operations: List[Operation] ): xml.Elem = {
-    val request = getRequest( async, identifier, domains, fragments, operations )
-    log( "Submit Request: " + request )
-    val response = scala.io.Source.fromURL(request).mkString
-    log( "Received Response: " + response )
-    scala.xml.XML.loadString(response)
+    val dataInputs = getDatainputs( domains, fragments, operations)
+    submitRequest( dataInputs, async, identifier )
   }
 
   def submitResultRequest( mtype: String, rid: String ): xml.Elem = {
@@ -176,18 +194,6 @@ class CDASClientRequestManager {
     val response = scala.io.Source.fromURL(request).mkString
     log( "Received Response: " + response )
     scala.xml.XML.loadString(response)
-  }
-
-  def submitTimedRequest( request: String, connectTimeout:Int =5000, readTimeout:Int =5000 ): String = {
-    import java.net.{URL, HttpURLConnection}
-    val connection = (new URL(request)).openConnection.asInstanceOf[HttpURLConnection]
-    connection.setConnectTimeout(connectTimeout)
-    connection.setReadTimeout(readTimeout)
-    connection.setRequestMethod("GET")
-    val inputStream = connection.getInputStream
-    val content = scala.io.Source.fromInputStream(inputStream).mkString
-    if (inputStream != null) inputStream.close
-    content
   }
 
 }
