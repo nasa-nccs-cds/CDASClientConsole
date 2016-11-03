@@ -1,6 +1,6 @@
 package nasa.nccs.console
 
-import java.io.PrintWriter
+import java.io.{File, PrintWriter}
 import java.nio.file.Paths
 
 import nasa.nccs.esgf.process.TaskRequest
@@ -96,9 +96,16 @@ class Operation( val pkg: String, val kernel: String, val input_uids: Array[Stri
 class CDASClientRequestManager {
   val server = getServerAddress
   val port = getServerPort
-  val logger = new PrintWriter(new java.io.File( Paths.get( System.getProperty("user.home"), ".cdas", "cdshell.log" ).toString ))
+  private var __logger: Option[PrintWriter] = None
+  val logFilePath = Paths.get( System.getProperty("user.home"), ".cdas", "cdshell.log" )
+  private def getNewLogger = new PrintWriter( logFilePath.toFile )
 
-  def log( msg: String )= { logger.write( msg + "\n" ); logger.flush }
+  def getLogger: Option[PrintWriter] = {
+    if( !logFilePath.toFile.exists || __logger == None ) { __logger  = Some( getNewLogger ) }
+    __logger
+  }
+
+  def log( msg: String ) = getLogger match { case Some(logger) => logger.write( msg + "\n" ); logger.flush; case None => None }
 
   private def getBaseRequest(async: Boolean): String = """http://%s:%s/wps?request=Execute&service=cds2&status=%s""".format(server, port, async.toString)
 

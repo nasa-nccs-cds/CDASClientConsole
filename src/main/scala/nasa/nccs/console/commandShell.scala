@@ -1,12 +1,15 @@
 package nasa.nccs.console
 import java.io.{Console, PrintWriter, StringWriter}
+
+import nasa.nccs.utilities.Loggable
+
 import scala.annotation.tailrec
 
 object ParseHelp {
   def isInt( value: String ): Boolean = try { value.toInt; true } catch { case t: Throwable => false }
 }
 
-abstract class CommandHandler( val name: String, val description: String ) {
+abstract class CommandHandler( val name: String, val description: String ) extends Loggable {
   val id: String = extractMatchId
   def process( state: ShellState ): ShellState
   def getPrompt( state: ShellState ): String
@@ -15,7 +18,9 @@ abstract class CommandHandler( val name: String, val description: String ) {
   def extractMatchId = name.toLowerCase.split('[').last.split(']').head
   def help: String = { s" * '$name': $description"}
   def getArgs( command: String ) = command.trim.replace(","," ").split("\\s+")
-  def assertBounds( ival: Int, b0: Int, b1: Int ): Unit = if( (ival<b0) || (ival>b1) ) throw new Exception( "Index out of bounds" )
+  def assertBounds( ival: Int, b0: Int, b1: Int ): Unit = {
+    if( (ival<b0) || (ival>b1) ) throw new Exception( "Index out of bounds" )
+  }
   override def toString = s"{$id}"
 }
 
@@ -155,7 +160,11 @@ final class ListSelectionCommandHandler( name: String, description: String, val 
 
   override def validate( command: String, state: ShellState ): Option[String] = {
     if( command.isEmpty ) None
-    else try{ getArgs(command).foreach( sval => assertBounds( sval.toInt, 0, getChoices(state).length-1 )  ); None } catch { case ex: Throwable => Some("Entry error: %s\n".format(ex.getMessage)) }
+    else try{
+      getArgs(command).foreach( sval => assertBounds( sval.toInt, 0, getChoices(state).length-1 )  ); None
+    } catch {
+      case ex: Throwable => Some( "Entry error: %s\n".format(ex.getMessage) )
+    }
   }
 
   def getPrompt( state: ShellState ) = if (errorState) "   Invalid entry, please try again: " else s"$description:\n%s\n > Enter index(es) of choice(s): ".format( getSelectionList(state: ShellState) )
