@@ -148,7 +148,7 @@ final class ListSelectionCommandHandler( name: String, description: String, val 
     } catch {
       case t: Throwable =>
         println( t.getMessage )
-        t.printStackTrace()
+//        t.printStackTrace()
         state.updateHandler( new ListSelectionCommandHandler(name, description, getChoices, executor, true) )
     }
   }
