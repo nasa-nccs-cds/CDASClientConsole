@@ -110,12 +110,7 @@ class CDASClientRequestManager {
     if( !logFilePath.toFile.exists || __logger == None ) { __logger  = Some( getNewLogger ) }
     __logger
   }
-
-  def serverLocality: Boolean = {
-    val islocal = ( server.equals("localhost") && port.equals("9000") )
-    log( " ---> Running with server %s:%s, isLocal = %s".format( server, port, isLocal ) )
-    islocal
-  }
+  def serverLocality: Boolean = ( sys.env.get("CDAS_SERVER_ADDRESS") == None )
 
   def log( msg: String ) = getLogger match { case Some(logger) => logger.write( msg + "\n" ); logger.flush; case None => None }
 
