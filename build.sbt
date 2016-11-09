@@ -38,14 +38,24 @@ import java.util.Properties
 lazy val cdasProperties = settingKey[Properties]("The cdas properties map")
 lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
+lazy val uvcdat_prefix = settingKey[File]("The UVCDAT env directory.")
 
 cdasPropertiesFile :=  baseDirectory.value / "project" / "cdshell.properties"
+uvcdat_prefix := getUvcdatEnv
 
 cdasProperties := {
   val prop = new Properties()
   try{ IO.load( prop, cdasPropertiesFile.value ) } catch { case err: Exception => println("No properties file found") }
   prop
 }
+
+dependencyOverrides ++= Set( "com.fasterxml.jackson.core" % "jackson-databind" % "2.4.4" )
+
+def getUvcdatEnv(): File =
+  sys.env.get("CONDA_PREFIX") match {
+    case Some(uvcdat_dir) => file(uvcdat_dir)
+    case None => file( System.getProperty("user.home") )
+  }
 
 resolvers += "Local CDAS Repository" at "file:///" + getPublishDir( cdasProperties.value ).toString
 
@@ -79,7 +89,9 @@ cdas_cache_dir := {
 
 unmanagedClasspath in Compile += cdas_cache_dir.value
 unmanagedClasspath in Runtime += cdas_cache_dir.value
+unmanagedClasspath in Runtime +=  uvcdat_prefix.value / "lib"
 unmanagedClasspath in Test += cdas_cache_dir.value
+unmanagedClasspath in Test +=  uvcdat_prefix.value / "lib"
 
 
     
