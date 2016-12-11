@@ -33,19 +33,33 @@ fork in test:= false
 
 javaOptions in run ++= Seq( "-Xmx2G", "-Xms512M")
 
+import java.nio.file.Files.copy
 import java.util.Properties
 
 lazy val cdasProperties = settingKey[Properties]("The cdas properties map")
 lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
+lazy val cdasDefaultPropertiesFile = settingKey[File]("The template cdas properties file")
 lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections file")
 lazy val uvcdat_prefix = settingKey[File]("The UVCDAT env directory.")
+lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
+lazy val cdas_publish_dir = settingKey[File]("The CDAS publish directory.")
 
-cdasPropertiesFile :=  baseDirectory.value / "project" / "cdshell.properties"
+cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
+cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
 uvcdat_prefix := getUvcdatEnv
 
 cdasProperties := {
   val prop = new Properties()
-  try{ IO.load( prop, cdasPropertiesFile.value ) } catch { case err: Exception => println("No properties file found") }
+  try{
+    if( !cdasPropertiesFile.value.exists() ) {
+      println("Copying default property file: " + cdasDefaultPropertiesFile.value.toString )
+      copy( cdasDefaultPropertiesFile.value.toPath, cdasPropertiesFile.value.toPath )
+    }
+    println("Loading property file: " + cdasPropertiesFile.value.toString )
+    IO.load( prop, cdasPropertiesFile.value )
+  } catch {
+    case err: Exception => println("No property file found")
+  }
   prop
 }
 
@@ -57,40 +71,37 @@ def getUvcdatEnv(): File =
     case None => file( System.getProperty("user.home") )
   }
 
-resolvers += "Local CDAS Repository" at "file:///" + getPublishDir( cdasProperties.value ).toString
+resolvers += "Local CDAS Repository" at "file:///" + getPublishDir().toString
 
-def getPublishDir( properties: Properties ): File =
+def getPublishDir(): File =
   sys.env.get("SBT_PUBLISH_DIR") match {
     case Some(cache_dir) => file(cache_dir)
-    case None =>
-      val home = file(System.getProperty("user.home"))
-      val cache_dir = properties.getProperty("cdas.publish.dir", "")
-      if (cache_dir.isEmpty) { home / ".cdas" / "cache" } else file( cache_dir )
+    case None => getCacheDir() / "publish"
   }
 
-def getCacheDir( properties: Properties ): File =
+
+def getCacheDir(): File =
   sys.env.get("CDAS_CACHE_DIR") match {
     case Some(cache_dir) => file(cache_dir)
-    case None =>
-      val home = file(System.getProperty("user.home"))
-      val cache_dir = properties.getProperty("cdas.cache.dir", "")
-      if (cache_dir.isEmpty) { home / ".cdas" / "cache" } else file( cache_dir )
+    case None =>file(System.getProperty("user.home")) / ".cdas" / "cache"
   }
 
-lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
-
 cdas_cache_dir := {
-  val cache_dir = getCacheDir( cdasProperties.value )
+  val cache_dir = getCacheDir( )
   cache_dir.mkdirs()
-  cdasProperties.value.put( "cdas.cache.dir", cache_dir.getAbsolutePath )
-  try{ IO.write( cdasProperties.value, "", cdasPropertiesFile.value ) } catch { case err: Exception => println("Error writing to properties file: " + err.getMessage ) }
   cache_dir
 }
 
-unmanagedClasspath in Compile += cdas_cache_dir.value
-unmanagedClasspath in Runtime += cdas_cache_dir.value
+cdas_publish_dir := {
+  val pdir = getPublishDir( )
+  pdir.mkdirs()
+  pdir
+}
+
+unmanagedClasspath in Compile += cdas_publish_dir.value
+unmanagedClasspath in Runtime += cdas_publish_dir.value
 unmanagedClasspath in Runtime +=  uvcdat_prefix.value / "lib"
-unmanagedClasspath in Test += cdas_cache_dir.value
+unmanagedClasspath in Test += cdas_publish_dir.value
 unmanagedClasspath in Test +=  uvcdat_prefix.value / "lib"
 
 
