@@ -38,7 +38,7 @@ object Library {
   val scalatest      = "org.scalatest" %% "scalatest" % "2.2.6" % "test"
   val concurrentlinkedhashmap = "com.googlecode.concurrentlinkedhashmap" % "concurrentlinkedhashmap-lru" % "1.4.2"
 
-  val cds2           = "nasa.nccs"         %% "cdas2"       % "1.2-SNAPSHOT"
+  val cds2           = "nasa.nccs"         %% "cdas2"       % "1.2.2-SNAPSHOT"
 }
 
 object Dependencies {
