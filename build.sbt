@@ -43,10 +43,16 @@ lazy val cdasLocalCollectionsFile = settingKey[File]("The cdas local Collections
 lazy val uvcdat_prefix = settingKey[File]("The UVCDAT env directory.")
 lazy val cdas_cache_dir = settingKey[File]("The CDAS cache directory.")
 lazy val cdas_publish_dir = settingKey[File]("The CDAS publish directory.")
+lazy val conda_lib_dir = settingKey[File]("The Conda lib directory.")
 
 cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
 cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
-uvcdat_prefix := getUvcdatEnv
+conda_lib_dir := getCondaLibDir
+
+def getCondaLibDir(): File = sys.env.get("CONDA_PREFIX") match {
+  case Some(ldir) => file(ldir) / "lib"
+  case None => throw new Exception( "Must activate the cdas2 environment in Anaconda: '>> source activate cdas2' ")
+}
 
 cdasProperties := {
   val prop = new Properties()
@@ -64,13 +70,6 @@ cdasProperties := {
 }
 
 dependencyOverrides ++= Set( "com.fasterxml.jackson.core" % "jackson-databind" % "2.4.4" )
-
-def getUvcdatEnv(): File =
-  sys.env.get("CONDA_PREFIX") match {
-    case Some(uvcdat_dir) => file(uvcdat_dir)
-    case None => file( System.getProperty("user.home") )
-  }
-
 resolvers += "Local CDAS Repository" at "file:///" + getPublishDir().toString
 
 def getPublishDir(): File =
@@ -98,11 +97,10 @@ cdas_publish_dir := {
   pdir
 }
 
-unmanagedClasspath in Compile += cdas_publish_dir.value
-unmanagedClasspath in Runtime += cdas_publish_dir.value
-unmanagedClasspath in Runtime +=  uvcdat_prefix.value / "lib"
-unmanagedClasspath in Test += cdas_publish_dir.value
-unmanagedClasspath in Test +=  uvcdat_prefix.value / "lib"
-
-
+unmanagedClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value, cdas_publish_dir.value )
+unmanagedClasspath in Runtime ++= Seq( conda_lib_dir.value, cdas_publish_dir.value )
+unmanagedClasspath in Test ++= Seq( conda_lib_dir.value, cdas_publish_dir.value )
+dependencyClasspath in Test ++= Seq( conda_lib_dir.value )
+dependencyClasspath in (Compile, runMain) ++= Seq( conda_lib_dir.value )
+classpathTypes += "dylib"
     

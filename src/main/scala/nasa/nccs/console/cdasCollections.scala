@@ -427,3 +427,29 @@ object cdasShellManager extends App {
   val shell = new CommandShell( new SelectionCommandHandler( "base", "BaseHandler", "cdas> ", handlers ) )
   shell.run
 }
+
+//object CdasShellTest extends App {
+//  val cdasControl = new CdasControlCenter( new CDASClientRequestManager( ) )
+//  val handlers = Array(
+//    cdasControl.aggregateDatasetCommand,
+//    cdasControl.clearCacheCommand,
+//    cdasControl.aggregateMultipleDatasetsCommand,
+//    cdasControl.cacheFragmentCommand,
+//    cdasControl.listCollectionsCommand,
+//    cdasControl.deleteCollectionsCommand,
+//    cdasControl.listFragmentsCommand,
+//    cdasControl.deleteFragmentsCommand,
+//    cdasControl.listOperationsCommand,
+//    cdasControl.listResultsCommand,
+//    cdasControl.listJobsCommand,
+//    cdasControl.deleteResultsCommand,
+//    cdasControl.getResultFileCommand,
+//    cdasDomainManager.defineDomainHandler,
+//    cdasControl.exeOperationCommand,
+//    cdasControl.listVariablesCommand,
+//    new HelpHandler( "[h]elp", "Command Help" )
+//  )
+//  val shell = new CommandShell( new SelectionCommandHandler( "base", "BaseHandler", "cdas> ", handlers ) )
+//  val shellState = new ShellState( Vector(shell.baseHandler) )
+//  cdasControl.aggregateDataset(false)( Vector( "npana", "/Users/tpmaxwel/Dropbox/Tom/Data/MERRA/MERRA2/6hr"), shellState )
+//}
