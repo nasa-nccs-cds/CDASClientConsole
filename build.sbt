@@ -34,6 +34,8 @@ fork in test:= false
 import java.nio.file.Files.copy
 import java.util.Properties
 
+enablePlugins(JavaAppPackaging)
+
 lazy val cdasProperties = settingKey[Properties]("The cdas properties map")
 lazy val cdasPropertiesFile = settingKey[File]("The cdas properties file")
 lazy val cdasDefaultPropertiesFile = settingKey[File]("The template cdas properties file")
