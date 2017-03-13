@@ -28,8 +28,8 @@ libraryDependencies ++= Dependencies.CDS2
 
 libraryDependencies ++= Dependencies.netcdf
 
-fork in run:= false
-fork in test:= false
+fork in run:= true
+fork in test:= true
 
 javaOptions in run ++= Seq( "-Xmx32000M", "-Xms512M")
 
