@@ -31,7 +31,7 @@ libraryDependencies ++= Dependencies.netcdf
 fork in run:= false
 fork in test:= false
 
-javaOptions in run ++= Seq( "-Xmx2G", "-Xms512M")
+javaOptions in run ++= Seq( "-Xmx32000M", "-Xms512M")
 
 import java.nio.file.Files.copy
 import java.util.Properties
