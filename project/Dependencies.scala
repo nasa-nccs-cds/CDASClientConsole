@@ -1,27 +1,21 @@
 import sbt._
 
 object Version {
-  val hadoop    = "2.6.0"
   val mockito   = "1.10.19"
-  val scala     = "2.11.7"
   val scalaTest = "2.2.4"
   val slf4j     = "1.7.6"
-  val spark     = "1.4.1"
 }
 
 object Library {
-  val hadoopClient   = "org.apache.hadoop" %  "hadoop-client"   % Version.hadoop
   val mockitoAll     = "org.mockito"       %  "mockito-all"     % Version.mockito
   val scalaTest      = "org.scalatest"     %% "scalatest"       % Version.scalaTest
   val slf4jApi       = "org.slf4j"         %  "slf4j-api"       % Version.slf4j
-  val sparkSQL       = "org.apache.spark"  %% "spark-sql"       % Version.spark
-  val sparkCore      = "org.apache.spark"  %% "spark-core"      % "1.6.0"
   val scalaxml       = "org.scala-lang.modules" %% "scala-xml"  % "1.0.3"
   val scalaparser    = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.3"
 
-  val cdm            = "edu.ucar"           % "cdm"             % "4.6.6"
-  val clcommon       = "edu.ucar"           % "clcommon"        % "4.6.6"
-  val netcdf4        = "edu.ucar"           % "netcdf4"         % "4.6.6"
+  val cdm            = "edu.ucar"           % "cdm"             % "4.6.10"
+  val clcommon       = "edu.ucar"           % "clcommon"        % "4.6.10"
+  val netcdf4        = "edu.ucar"           % "netcdf4"         % "4.6.10"
   val nd4s           = "org.nd4j"           % "nd4s_2.11"       % "0.4-rc3.8"
   val nd4j           =  "org.nd4j"          % "nd4j-x86"        % "0.4-rc3.8"
   val opendap        = "edu.ucar"           % "opendap"         % "2.2.2"
@@ -44,7 +38,9 @@ object Library {
 object Dependencies {
   import Library._
 
-  val scala = Seq( slf4jApi, scalaxml, scalaparser, joda, natty, scalactic, scalatest )
+  val scala = Seq( slf4jApi, joda, natty, scalactic, scalatest )
+
+  val scala_xml = Seq( scalaxml, scalaparser )
 
   val cache = Seq( concurrentlinkedhashmap )
 

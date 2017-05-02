@@ -1,12 +1,9 @@
 val kernelPackages = settingKey[ Seq[String] ]("A list of user-defined Kernel packages")
 
 name := "cdasClientConsole"
-
 version := "1.2-SNAPSHOT"
-
-scalaVersion := "2.11.7"
-
 organization := "nasa.nccs"
+scalaVersion := "2.10.5"
 
 lazy val root = project in file(".")
 
@@ -49,6 +46,16 @@ cdasPropertiesFile := cdas_cache_dir.value / "cdas.properties"
 cdasDefaultPropertiesFile := baseDirectory.value / "project" / "cdas.properties"
 conda_lib_dir := getCondaLibDir
 
+unmanagedJars in Compile ++= {
+  sys.env.get("CDAS_UNMANAGED_JARS") match {
+    case Some(jars_dir) =>
+      val customJars: PathFinder =  file(jars_dir) ** (("*.jar" -- "*netcdf*") -- "*concurrentlinkedhashmap*")
+      customJars.classpath
+    case None =>
+      PathFinder.empty.classpath
+  }
+}
+
 def getCondaLibDir(): File = sys.env.get("CONDA_PREFIX") match {
   case Some(ldir) => file(ldir) / "lib"
   case None => throw new Exception( "Must activate the cdas2 environment in Anaconda: '>> source activate cdas2' ")
@@ -64,10 +71,11 @@ cdasProperties := {
     println("Loading property file: " + cdasPropertiesFile.value.toString )
     IO.load( prop, cdasPropertiesFile.value )
   } catch {
-    case err: Exception => println("No property file found")
+    case err: Exception => println("No property file found: " + cdasPropertiesFile.value.toString )
   }
   prop
 }
+
 
 dependencyOverrides ++= Set( "com.fasterxml.jackson.core" % "jackson-databind" % "2.4.4" )
 resolvers += "Local CDAS Repository" at "file:///" + getPublishDir().toString
