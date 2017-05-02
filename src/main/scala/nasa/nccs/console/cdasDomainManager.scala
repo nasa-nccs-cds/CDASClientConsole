@@ -1,5 +1,5 @@
 package nasa.nccs.console
-
+import scala.xml
 import ucar.nc2.time.CalendarDate
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap
 import nasa.nccs.esgf.utilities.numbers.GenericNumber

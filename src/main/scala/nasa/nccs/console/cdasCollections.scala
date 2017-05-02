@@ -1,6 +1,7 @@
 package nasa.nccs.console
 import java.nio.file.{Files, Paths}
 import nasa.nccs.utilities.Loggable
+import scala.xml
 
 class CdasControlCenter( requestManager: CDASClientRequestManager ) extends Loggable {
   val printer = new xml.PrettyPrinter(200, 3)

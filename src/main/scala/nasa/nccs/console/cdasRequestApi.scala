@@ -2,7 +2,7 @@ package nasa.nccs.console
 
 import java.io.{File, PrintWriter}
 import java.nio.file.Paths
-
+import scala.xml
 import nasa.nccs.esgf.process.TaskRequest
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
 import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}

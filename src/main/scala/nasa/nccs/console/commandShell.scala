@@ -1,6 +1,6 @@
 package nasa.nccs.console
 import java.io.{Console, PrintWriter, StringWriter}
-
+import scala.xml
 import nasa.nccs.utilities.Loggable
 
 import scala.annotation.tailrec
