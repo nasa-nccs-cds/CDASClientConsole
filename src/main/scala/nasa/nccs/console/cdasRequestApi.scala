@@ -2,10 +2,12 @@ package nasa.nccs.console
 
 import java.io.{File, PrintWriter}
 import java.nio.file.Paths
+
 import scala.xml
 import nasa.nccs.esgf.process.TaskRequest
 import nasa.nccs.esgf.utilities.numbers.GenericNumber
-import nasa.nccs.esgf.wps.{ProcessManager, wpsObjectParser}
+import nasa.nccs.esgf.wps.{GenericProcessManager, ProcessManager, wpsObjectParser, zmqProcessManager}
+import nasa.nccs.utilities.Loggable
 
 trait NodeProcessor {
   def attr( node: xml.Node, att_name: String ): String = { node.attribute(att_name) match { case None => ""; case Some(x) => x.toString }}
@@ -94,7 +96,7 @@ class Operation( val pkg: String, val kernel: String, val input_uids: Array[Stri
 }
 
 
-class CDASClientRequestManager {
+class CDASClientRequestManager extends Loggable {
   val server = getServerAddress
   val port = getServerPort
   val service = "cds2"
@@ -104,15 +106,14 @@ class CDASClientRequestManager {
   val logFilePath = Paths.get( System.getProperty("user.home"), ".cdas", "cdshell.log" )
   private def getNewLogger = new PrintWriter( logFilePath.toFile )
   val isLocal = serverLocality
-  val webProcessManagerOpt: Option[ProcessManager] = if(isLocal) Some( new ProcessManager( serverConfiguration ) ) else None
+  val webProcessManagerOpt: Option[GenericProcessManager] = if(isLocal) Some( getProcessManager ) else None
 
-  def getLogger: Option[PrintWriter] = {
-    if( !logFilePath.toFile.exists || __logger == None ) { __logger  = Some( getNewLogger ) }
-    __logger
-  }
   def serverLocality: Boolean = ( sys.env.get("CDAS_SERVER_ADDRESS") == None )
+  def isCluster: Boolean = ( sys.env.get("YARN_CONF_DIR") != None )
 
-  def log( msg: String ) = getLogger match { case Some(logger) => logger.write( msg + "\n" ); logger.flush; case None => None }
+  def getProcessManager: GenericProcessManager = if( isCluster ) new zmqProcessManager( serverConfiguration ) else new ProcessManager( serverConfiguration )
+
+  def log( msg: String ) = logger.info( msg + "\n" );
 
   private def getBaseRequest(async: Boolean): String = """http://%s:%s/wps?request=Execute&service=%s&status=%s""".format(server, port, service, async.toString)
 
@@ -140,14 +141,14 @@ class CDASClientRequestManager {
   def getServerPort: String = sys.env.getOrElse("CDAS_SERVER_PORT",9000).toString
   def getServerAddress: String = sys.env.getOrElse("CDAS_SERVER_ADDRESS","localhost").toString
 
-  def submitRequest( datainputs: String, async: Boolean, identifier: String = "CDSpark.workflow" ): xml.Elem = try {
+  def submitRequest( datainputs: String, async: Boolean, identifier: String = "CDSpark.workflow" ): xml.Node = try {
     webProcessManagerOpt match {
       case Some(webProcessManager) =>
         val t0 = System.nanoTime()
         val runargs = Map("responseform" -> "", "storeexecuteresponse" -> "true", "async" -> async.toString )
         val parsed_data_inputs = wpsObjectParser.parseDataInputs(datainputs)
-        val response: xml.Elem = webProcessManager.executeProcess(service, identifier, parsed_data_inputs, runargs)
-        webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
+        val response: xml.Node = webProcessManager.executeProcess( service, identifier, parsed_data_inputs, runargs)
+        logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
         response
       case None =>
         val request = Array( getBaseRequest(async), "identifier="+identifier, "datainputs="+datainputs ).mkString("&").replaceAll("\\s+","")
@@ -161,12 +162,12 @@ class CDASClientRequestManager {
     case error: Exception => <error> { "Error executing Request: " + error.getMessage } </error>
   }
 
-  def requestCapabilities( identifier: String ): xml.Elem = try {
+  def requestCapabilities( identifier: String ): xml.Node = try {
     webProcessManagerOpt match {
       case Some(webProcessManager) =>
         val t0 = System.nanoTime()
-        val response: xml.Elem = webProcessManager.getCapabilities( service, identifier )
-        webProcessManager.logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
+        val response: xml.Node = webProcessManager.getCapabilities( service, identifier )
+        logger.info("Completed request '%s' in %.4f sec".format(identifier, (System.nanoTime() - t0) / 1.0E9))
         response
       case None =>
         val request = getCapabilities(identifier)
@@ -180,7 +181,7 @@ class CDASClientRequestManager {
     case error: Exception => <error> { "Error executing Request: " + error.getMessage } </error>
   }
 
-  def submitRequest( async: Boolean, identifier: String, domains: List[Domain], fragments: List[WpsData], operations: List[Operation] ): xml.Elem = {
+  def submitRequest( async: Boolean, identifier: String, domains: List[Domain], fragments: List[WpsData], operations: List[Operation] ): xml.Node = {
     val dataInputs = getDatainputs( domains, fragments, operations)
     submitRequest( dataInputs, async, identifier )
   }
